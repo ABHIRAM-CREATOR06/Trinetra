@@ -1,93 +1,152 @@
-# त्रिनेत्र (Trinetra)
-## A Multi-Layer Telecom Fraud Intelligence and Risk Detection Platform
+<div align="center">
 
-Trinetra is an independent research prototype designed to explore multi-layer telecom fraud detection and explainable risk scoring using synthetic telecom network traces, rule engines, machine learning, and graph-based correlation.
+![Trinetra banner](./assets/banner.png)
+
+# त्रिनेत्र · Trinetra
+
+**A multi-layer telecom fraud intelligence and risk detection platform**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Backend](https://img.shields.io/badge/backend-Rust%20%2F%20Axum-orange)](backend)
+[![Data Generator](https://img.shields.io/badge/data--generator-Python-blue)](data-generator)
+[![Database](https://img.shields.io/badge/database-SQLite-lightgrey)](data)
+[![Status](https://img.shields.io/badge/status-active%20development-brightgreen)]()
+
+</div>
 
 ---
 
-## 1. Project Concept & Architecture
+Trinetra is an independent research prototype for exploring multi-layer telecom fraud detection and explainable risk scoring. It correlates subscriber, SIM, device, and behavioral signals over synthetic telecom network traces, using a rule-based risk engine and graph correlation to surface anomalies and flag investigations automatically.
 
-Trinetra correlates subscriber, SIM, device, and behavioral intelligence to identify anomalous behavior and calculate risk assessments:
+Built for the kind of fraud patterns real telecom networks see: SIM farming, device sharing rings, stolen IMEIs, dealer-level fraud clusters, and impossible-travel signaling anomalies.
+
+## Table of Contents
+
+- [Why Trinetra](#why-trinetra)
+- [Architecture](#architecture)
+- [Directory Structure](#directory-structure)
+- [Quickstart](#quickstart)
+- [API Reference](#api-reference)
+- [Risk Engine](#risk-engine)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+## Why Trinetra
+
+Telecom fraud detection systems are usually black boxes: a score comes out, and nobody downstream can explain why. Trinetra is built around the opposite premise, every risk score should be traceable to specific, auditable rules, and every flagged subscriber should generate an investigation record with a clear reason.
+
+The platform is intentionally layered:
+
+- **Subscriber Intelligence** — ownership patterns, SIM concentration, complaint history
+- **SIM Intelligence** — activation history, churn, dealer/PoS association
+- **Device Intelligence** — IMEI sharing, blacklist status, device-to-SIM ratios
+- **Graph Intelligence** — cross-entity correlation across subscribers, SIMs, and devices
+- **Risk Assessment** — weighted rule evaluation producing an auditable, explainable score
+
+## Architecture
 
 ```
-                 त्रिनेत्र
-                    │
-        ┌───────────┼───────────┐
-        ↓           ↓           ↓
-    Subscriber    Device     Behaviour
-    Intelligence Intelligence Intelligence
-        │           │           │
-        └───────────┼───────────┘
-                    ↓
-             Fraud Intelligence
-                    ↓
-               Risk Engine
-                    ↓
-             SQLite Database (trinetra.db)
+                     त्रिनेत्र
+                        │
+      ┌─────────────────┼─────────────────┐
+      ↓                 ↓                 ↓
+ Subscriber          Device            Behaviour
+ Intelligence      Intelligence       Intelligence
+      │                 │                 │
+      └─────────────────┼─────────────────┘
+                         ↓
+                Fraud Intelligence
+                         ↓
+                    Risk Engine
+                         ↓
+              SQLite Database (trinetra.db)
 ```
 
----
+A Python generator seeds a portable SQLite database with realistic benign and fraudulent subscriber traces. A Rust (Axum + SQLx) backend serves this data through a REST API and runs the rule-based risk engine on demand, auto-opening investigations for anything scoring HIGH or above.
 
-## 2. Directory Structure
+## Directory Structure
 
-* **`data/`**: Relational database migration scripts and the canonical portable database file `trinetra.db`.
-* **`data-generator/`**: Python simulator generating benign and 8 specific fraud scenario subscriber traces.
-* **`backend/`**: Rust Axum Web API using SQLx for parameterized querying and executing the rule-based risk evaluation engine.
-* **`dataset/`**: Publicly available FraudZen bypass fraud CDR trace data for external ML model experiments.
-* **`private/`**: Project requirements, agent instruction manuals, and design guidelines.
+| Path | Description |
+|---|---|
+| `data/` | Database migration scripts and the canonical portable database file `trinetra.db` |
+| `data-generator/` | Python simulator generating benign traces and 8 distinct fraud scenarios |
+| `backend/` | Rust Axum web API using SQLx for parameterized queries and the risk evaluation engine |
+| `dataset/` | Public FraudZen bypass-fraud CDR trace data for external ML experiments |
+| `private/` | Project requirements, agent instruction manuals, and design guidelines |
 
----
+## Quickstart
 
-## 3. Quickstart Guide
+### 1. Generate and populate the database
 
-### Step 1: Initialize Python Environment and Populate Database
-The synthetic data generator automatically runs database migrations and populates the SQLite database (`data/trinetra.db`) with 500+ subscribers and 8 specific fraud scenarios:
+The generator runs migrations and seeds `data/trinetra.db` with 500+ subscribers across 8 fraud scenarios, plus locations, points of sale, SIMs, devices, and network events.
+
 ```bash
-# Run from repository root
+# from repository root
 python data-generator/generator.py --clean
 ```
-This generates the SQLite file `data/trinetra.db` and populates the locations, POS, subscribers, SIMs, devices, and event records.
 
-### Step 2: Build and Run the Rust Backend
-The backend executes Axum routes, connects to the SQLite pool, and exposes REST endpoints for subscriber metadata, device sharing profiles, audit trails, and manual risk evaluations.
+### 2. Build and run the backend
+
 ```bash
-# Navigate to the backend directory and run
 cd backend
 cargo run
 ```
-The server will start on `http://127.0.0.1:3000`.
 
----
+The API starts on `http://127.0.0.1:3000`.
 
-## 4. API Endpoints
+## API Reference
 
 ### Subscribers & Risk Assessment
-* `GET /api/subscribers`: Lists subscribers (supports pagination and query search `?q=`).
-* `GET /api/subscribers/:id`: Detailed profile of a subscriber, including active SIMs, recent device history, recent network events, and risk assessment history.
-* `POST /api/subscribers/:id/evaluate`: Runs the rule-based risk engine on a subscriber. If the score is HIGH or VERY HIGH, an investigation record is auto-generated.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/subscribers` | List subscribers (paginated, supports `?q=` search) |
+| `GET` | `/api/subscribers/:id` | Full profile: active SIMs, device history, recent events, risk assessment history |
+| `POST` | `/api/subscribers/:id/evaluate` | Run the rule engine on a subscriber; auto-generates an investigation if score is HIGH or VERY HIGH |
 
 ### Devices
-* `GET /api/devices`: Lists device entities.
-* `GET /api/devices/:id`: Detailed device profile showing all SIMs ever loaded on it and recent events.
 
-### Investigations & Audit Logs
-* `GET /api/investigations`: Lists all active fraud investigations.
-* `PUT /api/investigations/:id`: Update investigation status (e.g., `PENDING` to `UNDER_REVIEW` or `RESOLVED`) and investigator notes.
-* `GET /api/audit_logs`: Fetch the system audit trail.
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/devices` | List device entities |
+| `GET` | `/api/devices/:id` | Device profile with every SIM ever loaded and recent events |
 
----
+### Investigations & Audit
 
-## 5. Risk Assessment & Rule Engine
-The rule engine dynamically evaluates the following risk rules:
-1. **SIM Concentration**: Checks if a subscriber owns > 9 SIM cards (+30 points).
-2. **Device Sharing**: Checks if an IMEI is shared across > 5 distinct SIM cards (+25 points).
-3. **Stolen Device**: Checks if subscriber SIMs are active on a blacklisted device IMEI (+40 points).
-4. **Fraud Reports**: Multiplies external complaint counts (+15 points per report, max 40).
-5. **Suspicious PoS**: Detects if the registration PoS dealer has a >30% fraud report rate (+15 points).
-6. **Geographic Anomaly**: Identifies consecutive signaling events in different states within 1 hour (+20 points).
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/investigations` | List active fraud investigations |
+| `PUT` | `/api/investigations/:id` | Update status (`PENDING` → `UNDER_REVIEW` → `RESOLVED`) and investigator notes |
+| `GET` | `/api/audit_logs` | Fetch the system audit trail |
 
-Scores are mapped into categorical risk levels:
-* **0 - 24**: LOW
-* **25 - 49**: MEDIUM
-* **50 - 74**: HIGH (Triggers automatic Investigation)
-* **75 - 100**: VERY HIGH (Triggers automatic Investigation)
+## Risk Engine
+
+Every subscriber evaluation runs through six weighted rules:
+
+| Rule | Trigger | Weight |
+|---|---|---|
+| SIM Concentration | Subscriber owns more than 9 SIM cards | +30 |
+| Device Sharing | An IMEI is shared across more than 5 distinct SIMs | +25 |
+| Stolen Device | SIM active on a blacklisted IMEI | +40 |
+| Fraud Reports | External complaint count | +15 per report, capped at +40 |
+| Suspicious PoS | Registration dealer has a fraud report rate above 30% | +15 |
+| Geographic Anomaly | Consecutive signaling events in different states within 1 hour | +20 |
+
+Scores map to categorical risk levels:
+
+| Score | Level | Behavior |
+|---|---|---|
+| 0-24 | LOW | — |
+| 25-49 | MEDIUM | — |
+| 50-74 | HIGH | Auto-opens investigation |
+| 75-100 | VERY HIGH | Auto-opens investigation |
+
+## Roadmap
+
+This is an active research prototype. Planned areas of work include expanding graph-based correlation beyond direct device sharing, refining the ML experiments against the FraudZen dataset, and hardening the API for concurrent evaluation workloads.
+
+Contributions and issue reports are welcome while the project is under development.
+
+## License
+
+Released under the [MIT License](LICENSE).
