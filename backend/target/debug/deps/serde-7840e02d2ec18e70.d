@@ -1,0 +1,14 @@
+C:\Users\abhir\OneDrive\Documents\GitHub\Trinetra\backend\target\debug\deps\serde-7840e02d2ec18e70.d: C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs C:\Users\abhir\OneDrive\Documents\GitHub\Trinetra\backend\target\debug\build\serde-1f06ebef1b771151\out/private.rs
+
+C:\Users\abhir\OneDrive\Documents\GitHub\Trinetra\backend\target\debug\deps\libserde-7840e02d2ec18e70.rlib: C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs C:\Users\abhir\OneDrive\Documents\GitHub\Trinetra\backend\target\debug\build\serde-1f06ebef1b771151\out/private.rs
+
+C:\Users\abhir\OneDrive\Documents\GitHub\Trinetra\backend\target\debug\deps\libserde-7840e02d2ec18e70.rmeta: C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs C:\Users\abhir\OneDrive\Documents\GitHub\Trinetra\backend\target\debug\build\serde-1f06ebef1b771151\out/private.rs
+
+C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\lib.rs:
+C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\integer128.rs:
+C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\mod.rs:
+C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\de.rs:
+C:\Users\abhir\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.229\src\private\ser.rs:
+C:\Users\abhir\OneDrive\Documents\GitHub\Trinetra\backend\target\debug\build\serde-1f06ebef1b771151\out/private.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\abhir\\OneDrive\\Documents\\GitHub\\Trinetra\\backend\\target\\debug\\build\\serde-1f06ebef1b771151\\out
