@@ -10,40 +10,43 @@
 [![Backend](https://img.shields.io/badge/backend-Rust%20%2F%20Axum-orange)](backend)
 [![Data Generator](https://img.shields.io/badge/data--generator-Python-blue)](data-generator)
 [![Database](https://img.shields.io/badge/database-SQLite-lightgrey)](data)
-[![Status](https://img.shields.io/badge/status-active%20development-brightgreen)]()
+[![Phase](https://img.shields.io/badge/phase-1%20of%205%20complete-brightgreen)]()
 
 </div>
 
 ---
 
-Trinetra is an independent research prototype for exploring multi-layer telecom fraud detection and explainable risk scoring. It correlates subscriber, SIM, device, and behavioral signals over synthetic telecom network traces, using a rule-based risk engine and graph correlation to surface anomalies and flag investigations automatically.
+Trinetra is an independent research prototype exploring multi-layer telecom fraud detection and explainable risk scoring. It correlates subscriber, SIM, device, and behavioral signals over synthetic telecom network traces to identify anomalies and flag investigations, every score comes with a breakdown of exactly which rules produced it.
 
-Built for the kind of fraud patterns real telecom networks see: SIM farming, device sharing rings, stolen IMEIs, dealer-level fraud clusters, and impossible-travel signaling anomalies.
+The project is scoped in phases. **Phase 1 is complete and functional today.** Everything below Phase 1 is planned, not yet built. See [`AGENTS.md`](AGENTS.md) for the full project specification.
 
 ## Table of Contents
 
 - [Why Trinetra](#why-trinetra)
-- [Architecture](#architecture)
+- [Project Status](#project-status)
+- [Architecture (Phase 1)](#architecture-phase-1)
 - [Directory Structure](#directory-structure)
 - [Quickstart](#quickstart)
 - [API Reference](#api-reference)
-- [Risk Engine](#risk-engine)
+- [Risk Engine (Phase 1)](#risk-engine-phase-1)
 - [Roadmap](#roadmap)
 - [License](#license)
 
 ## Why Trinetra
 
-Telecom fraud detection systems are usually black boxes: a score comes out, and nobody downstream can explain why. Trinetra is built around the opposite premise, every risk score should be traceable to specific, auditable rules, and every flagged subscriber should generate an investigation record with a clear reason.
+Most fraud detection systems produce a score with no explanation attached. Trinetra is built around the opposite premise: every risk score should be traceable to specific, auditable rules, and every flagged subscriber should generate an investigation record with a clear, human-readable reason. That principle holds across every planned phase, from the current rule engine through the future ML and graph layers.
 
-The platform is intentionally layered:
+## Project Status
 
-- **Subscriber Intelligence** — ownership patterns, SIM concentration, complaint history
-- **SIM Intelligence** — activation history, churn, dealer/PoS association
-- **Device Intelligence** — IMEI sharing, blacklist status, device-to-SIM ratios
-- **Graph Intelligence** — cross-entity correlation across subscribers, SIMs, and devices
-- **Risk Assessment** — weighted rule evaluation producing an auditable, explainable score
+| Phase | Scope | Status |
+|---|---|---|
+| **Phase 1 — Foundation & Detection** | Data model, synthetic data generator, SQLite database, migrations, REST API, rule-based risk engine, explainable scoring | **Complete** |
+| Phase 2 — Machine Learning | Feature engineering, anomaly detection (Isolation Forest, Random Forest, XGBoost) as an additional intelligence layer | Planned |
+| Phase 3 — Graph Intelligence | Entity relationship graph (NetworkX), cluster detection across subscribers/SIMs/devices | Planned |
+| Phase 4 — Investigation Platform | React dashboard, graph visualization, evidence timeline, investigator workflow | Planned |
+| Phase 5 — Research | Ablation studies, benchmarking, formal evaluation (precision/recall/F1/ROC-AUC), research report | Planned |
 
-## Architecture
+## Architecture (Phase 1)
 
 ```
                      त्रिनेत्र
@@ -57,12 +60,14 @@ The platform is intentionally layered:
                          ↓
                 Fraud Intelligence
                          ↓
-                    Risk Engine
+                 Rule-Based Risk Engine
                          ↓
               SQLite Database (trinetra.db)
 ```
 
-A Python generator seeds a portable SQLite database with realistic benign and fraudulent subscriber traces. A Rust (Axum + SQLx) backend serves this data through a REST API and runs the rule-based risk engine on demand, auto-opening investigations for anything scoring HIGH or above.
+A Python generator seeds a portable SQLite database with realistic benign and fraudulent subscriber traces across 8 distinct fraud scenarios. A Rust (Axum + SQLx) backend serves this data through a REST API and runs the rule-based risk engine on demand, auto-opening investigations for anything scoring HIGH or above.
+
+Graph correlation and ML scoring (shown in the full architecture in `AGENTS.md`) are Phase 2/3 additions, not part of the current pipeline.
 
 ## Directory Structure
 
@@ -119,7 +124,7 @@ The API starts on `http://127.0.0.1:3000`.
 | `PUT` | `/api/investigations/:id` | Update status (`PENDING` → `UNDER_REVIEW` → `RESOLVED`) and investigator notes |
 | `GET` | `/api/audit_logs` | Fetch the system audit trail |
 
-## Risk Engine
+## Risk Engine (Phase 1)
 
 Every subscriber evaluation runs through six weighted rules:
 
@@ -141,9 +146,11 @@ Scores map to categorical risk levels:
 | 50-74 | HIGH | Auto-opens investigation |
 | 75-100 | VERY HIGH | Auto-opens investigation |
 
+In Phase 2/3, ML anomaly scores and graph cluster indicators will feed into this same risk engine alongside the existing rules, without changing the explainability contract, every contributing factor to a score will still be individually listed.
+
 ## Roadmap
 
-This is an active research prototype. Planned areas of work include expanding graph-based correlation beyond direct device sharing, refining the ML experiments against the FraudZen dataset, and hardening the API for concurrent evaluation workloads.
+Trinetra is developed in phases, from foundational detection through a full investigation platform and formal research evaluation. See [`AGENTS.md`](AGENTS.md) for the complete specification, including non-goals, data/privacy requirements, the full technology stack, and the research questions driving later phases.
 
 Contributions and issue reports are welcome while the project is under development.
 
