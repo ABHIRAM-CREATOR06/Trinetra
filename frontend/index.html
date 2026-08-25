@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>त्रिनेत्र — Trinetra Intelligence Platform</title>
+  <meta name="description" content="Trinetra: A Multi-Layer Telecom Fraud Intelligence and Risk Detection Platform. Monitor subscribers, devices, and investigations in real time." />
+
+  <!-- IBM Plex Sans from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════
+       SIDEBAR NAVIGATION
+  ═══════════════════════════════════════════════════════ -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-brand">
+      <span class="sidebar-logo">◎</span>
+      <div class="sidebar-wordmark">
+        <span class="sidebar-title">त्रिनेत्र</span>
+        <span class="sidebar-subtitle">Trinetra</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
+      <a href="#dashboard"      id="nav-dashboard"      class="sidebar-link" data-page="dashboard">
+        <span class="sidebar-icon">⬡</span> Dashboard
+      </a>
+      <a href="#subscribers"    id="nav-subscribers"    class="sidebar-link" data-page="subscribers">
+        <span class="sidebar-icon">◈</span> Subscribers
+      </a>
+      <a href="#devices"        id="nav-devices"        class="sidebar-link" data-page="devices">
+        <span class="sidebar-icon">◇</span> Devices
+      </a>
+      <a href="#investigations" id="nav-investigations" class="sidebar-link" data-page="investigations">
+        <span class="sidebar-icon">◉</span> Investigations
+      </a>
+      <a href="#audit-log"      id="nav-audit-log"      class="sidebar-link" data-page="audit-log">
+        <span class="sidebar-icon">≡</span> Audit Log
+      </a>
+    </nav>
+
+    <div class="sidebar-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span class="status-label" id="status-label">Connecting…</span>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MAIN CONTENT AREA
+  ═══════════════════════════════════════════════════════ -->
+  <main id="main" class="main">
+    <!-- Utility Bar -->
+    <div class="utility-bar">
+      <span class="utility-tag">Trinetra Intelligence Platform</span>
+      <span class="utility-breadcrumb" id="utility-breadcrumb">Dashboard</span>
+    </div>
+
+    <!-- Page Content — injected by app.js -->
+    <div id="page-content" class="page-content">
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading…</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODAL OVERLAY (for investigation updates)
+  ═══════════════════════════════════════════════════════ -->
+  <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">Update Investigation</h2>
+        <button class="modal-close" id="modal-close" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Injected by app.js -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="modal-submit">Update</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       EVALUATE RESULT TOAST
+  ═══════════════════════════════════════════════════════ -->
+  <div id="toast" class="toast hidden" role="alert" aria-live="polite">
+    <span id="toast-message"></span>
+    <button class="toast-close" id="toast-close">&times;</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
