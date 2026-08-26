@@ -10,7 +10,7 @@
 [![Backend](https://img.shields.io/badge/backend-Rust%20%2F%20Axum-orange)](backend)
 [![Data Generator](https://img.shields.io/badge/data--generator-Python-blue)](data-generator)
 [![Database](https://img.shields.io/badge/database-SQLite-lightgrey)](data)
-[![Phase](https://img.shields.io/badge/phase-1%20of%205%20complete-brightgreen)]()
+[![Phase](https://img.shields.io/badge/phase-2%20of%205%20complete-brightgreen)]()
 
 </div>
 
