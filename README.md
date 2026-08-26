@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-yellow)](frontend)
 [![Data Generator](https://img.shields.io/badge/data--generator-Python-blue)](data-generator)
 [![Database](https://img.shields.io/badge/database-SQLite-lightgrey)](data)
-[![Phase](https://img.shields.io/badge/phase-1%20%26%204%20complete-brightgreen)]()
+[![Phase](https://img.shields.io/badge/phase-1%20of%205%20complete-brightgreen)]()
 
 </div>
 
