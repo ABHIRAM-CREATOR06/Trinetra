@@ -1264,3 +1264,321 @@ a:hover {
 .mb-md { margin-bottom: var(--sp-md); }
 .flex-between { display: flex; align-items: center; justify-content: space-between; }
 .gap-sm { gap: var(--sp-sm); }
+
+/* ── Utility Bar Flex Layout ──────────────────────────────── */
+.utility-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.utility-bar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+}
+
+.utility-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+}
+
+/* ── Slide-in Side Panel ─────────────────────────────────── */
+.side-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 900;
+  transition: opacity 0.25s ease;
+}
+
+.side-panel-overlay.hidden {
+  display: none;
+}
+
+.side-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 480px;
+  max-width: 90vw;
+  height: 100vh;
+  background: var(--c-surface-0);
+  border-left: 1px solid var(--c-hairline);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.5);
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(0);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.side-panel.hidden {
+  transform: translateX(100%);
+  display: flex; /* keep flex structure for slide animation */
+  pointer-events: none;
+}
+
+.side-panel-header {
+  padding: var(--sp-lg);
+  background: var(--c-surface-1);
+  border-bottom: 1px solid var(--c-hairline);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.side-panel-title {
+  font-size: 18px;
+  font-weight: var(--fw-semibold);
+  color: var(--c-ink);
+  margin: 0;
+}
+
+.side-panel-subtitle {
+  font-size: 12px;
+  color: var(--c-ink-muted);
+  margin-top: 4px;
+}
+
+.side-panel-close {
+  background: none;
+  border: none;
+  color: var(--c-ink-muted);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.side-panel-close:hover {
+  color: var(--c-ink);
+}
+
+.side-panel-tabs {
+  display: flex;
+  background: var(--c-surface-1);
+  border-bottom: 1px solid var(--c-hairline);
+  overflow-x: auto;
+}
+
+.side-tab-btn {
+  flex: 1;
+  padding: var(--sp-md) var(--sp-sm);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--c-ink-muted);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: var(--fw-regular);
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.side-tab-btn:hover {
+  color: var(--c-ink);
+  background: var(--c-surface-2);
+}
+
+.side-tab-btn.active {
+  color: var(--c-primary);
+  border-bottom-color: var(--c-primary);
+  font-weight: var(--fw-semibold);
+  background: var(--c-surface-0);
+}
+
+.side-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-lg);
+}
+
+/* ── Carbon Form Controls ────────────────────────────────── */
+.form-group {
+  margin-bottom: var(--sp-lg);
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  color: var(--c-ink-muted);
+  letter-spacing: 0.32px;
+  margin-bottom: var(--sp-xs);
+  text-transform: uppercase;
+}
+
+.form-label .required {
+  color: var(--c-error);
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--c-surface-1);
+  border: 1px solid var(--c-hairline);
+  border-bottom: 2px solid var(--c-hairline);
+  color: var(--c-ink);
+  font-family: var(--font);
+  font-size: 14px;
+  outline: none;
+  border-radius: 0;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  border-bottom-color: var(--c-primary);
+  background: var(--c-surface-2);
+}
+
+.form-hint {
+  font-size: 11px;
+  color: var(--c-ink-subtle);
+  margin-top: 4px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-md);
+  margin-top: var(--sp-xl);
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--c-hairline);
+}
+
+/* ── Risk Trend Sparkline ────────────────────────────────── */
+.sparkline-card {
+  background: var(--c-surface-1);
+  border: 1px solid var(--c-hairline);
+  padding: var(--sp-lg);
+  margin-bottom: var(--sp-lg);
+}
+
+.sparkline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-md);
+}
+
+.sparkline-title {
+  font-size: 14px;
+  font-weight: var(--fw-semibold);
+  color: var(--c-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sparkline-canvas-container {
+  width: 100%;
+  height: 140px;
+  position: relative;
+}
+
+.sparkline-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Bulk Evaluate Queue Panel ───────────────────────────── */
+.bulk-eval-card {
+  background: var(--c-surface-1);
+  border: 1px solid var(--c-hairline);
+  padding: var(--sp-lg);
+  margin-top: var(--sp-lg);
+}
+
+.bulk-progress-bg {
+  width: 100%;
+  height: 8px;
+  background: var(--c-surface-2);
+  margin: var(--sp-md) 0;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.bulk-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #0f62fe, #4589ff);
+  transition: width 0.2s linear;
+}
+
+.rolling-log-box {
+  background: #111;
+  border: 1px solid var(--c-hairline);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: #3dd68c;
+  padding: var(--sp-sm) var(--sp-md);
+  max-height: 120px;
+  overflow-y: auto;
+  margin-top: var(--sp-md);
+  white-space: pre-wrap;
+}
+
+/* ── Table Filter Inputs ─────────────────────────────────── */
+.table-filter-bar {
+  display: flex;
+  gap: var(--sp-md);
+  align-items: center;
+  padding: var(--sp-sm) var(--sp-md);
+  background: var(--c-surface-1);
+  border: 1px solid var(--c-hairline);
+  border-bottom: none;
+}
+
+.table-filter-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  font-size: 12px;
+  color: var(--c-ink-muted);
+}
+
+.filter-select {
+  padding: 4px 8px;
+  background: var(--c-surface-0);
+  border: 1px solid var(--c-hairline);
+  color: var(--c-ink);
+  font-family: var(--font);
+  font-size: 12px;
+}
+
+/* ── Collapsible Inline Forms ────────────────────────────── */
+.collapsible-box {
+  background: var(--c-surface-1);
+  border: 1px solid var(--c-hairline);
+  margin-top: var(--sp-md);
+  padding: var(--sp-md);
+}
+
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: var(--fw-semibold);
+  color: var(--c-ink);
+}
+
+.collapsible-body {
+  margin-top: var(--sp-md);
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--c-hairline);
+}
+

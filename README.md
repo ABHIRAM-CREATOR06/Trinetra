@@ -11,7 +11,7 @@
 [![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-yellow)](frontend)
 [![Data Generator](https://img.shields.io/badge/data--generator-Python-blue)](data-generator)
 [![Database](https://img.shields.io/badge/database-SQLite-lightgrey)](data)
-[![Phase](https://img.shields.io/badge/phase-1%20of%205%20complete-brightgreen)]()
+[![Phase](https://img.shields.io/badge/phase-1%20%26%204%20complete-brightgreen)]()
 
 </div>
 
@@ -19,7 +19,7 @@
 
 Trinetra is an independent research prototype exploring multi-layer telecom fraud detection and explainable risk scoring. It correlates subscriber, SIM, device, and behavioral signals over synthetic telecom network traces to identify anomalies and flag investigations — every score comes with a breakdown of exactly which rules produced it.
 
-The project is scoped in phases. **Phases 1 and 4 are complete and functional today.** Everything else is planned, not yet built.
+The project is scoped in phases. **Phases 1 and 4 (including Iterations 2 & 3: UI Enhancements & Manual Data Entry Pipelines) are complete and functional today.**
 
 ## Table of Contents
 
@@ -30,13 +30,14 @@ The project is scoped in phases. **Phases 1 and 4 are complete and functional to
 - [Quickstart](#quickstart)
 - [API Reference](#api-reference)
 - [Risk Engine](#risk-engine)
-- [Investigation Dashboard](#investigation-dashboard)
+- [Investigation Dashboard & Data Entry](#investigation-dashboard--data-entry)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Roadmap](#roadmap)
 - [License](#license)
 
 ## Why Trinetra
 
-Most fraud detection systems produce a score with no explanation attached. Trinetra is built around the opposite premise: every risk score should be traceable to specific, auditable rules, and every flagged subscriber should generate an investigation record with a clear, human-readable reason. That principle holds across every planned phase, from the current rule engine through the future ML and graph layers.
+Most fraud detection systems produce a score with no explanation attached. Trinetra is built around the opposite premise: every risk score should be traceable to specific, auditable rules, and every flagged subscriber should generate an investigation record with a clear, human-readable reason. That principle holds across every phase, from the rule engine through manual operational data entry and future ML and graph layers.
 
 ## Project Status
 
@@ -45,7 +46,7 @@ Most fraud detection systems produce a score with no explanation attached. Trine
 | **Phase 1 — Foundation & Detection** | Data model, synthetic data generator, SQLite database, migrations, REST API, rule-based risk engine, explainable scoring | **Complete** |
 | Phase 2 — Machine Learning | Feature engineering, anomaly detection (Isolation Forest, Random Forest, XGBoost) as an additional intelligence layer | Planned |
 | Phase 3 — Graph Intelligence | Entity relationship graph (NetworkX), cluster detection across subscribers/SIMs/devices | Planned |
-| **Phase 4 — Investigation Platform** | Vanilla JS SPA dashboard, subscriber/device browser, investigation workflow, audit log (Operational data entry pipelines & UI enhancements planned for Iteration 3) | **In Progress** |
+| **Phase 4 — Investigation & Operations Platform** | Vanilla JS SPA dashboard, subscriber/device browser, risk trend sparklines, bulk evaluate queue, investigation workflow, audit log, **Manual Data Entry Pipelines (Iteration 3)** | **Complete** |
 | Phase 5 — Research | Ablation studies, benchmarking, formal evaluation (precision/recall/F1/ROC-AUC), research report | Planned |
 
 ## Architecture
@@ -62,18 +63,16 @@ Most fraud detection systems produce a score with no explanation attached. Trine
                          ↓
                 Fraud Intelligence
                          ↓
-                 Rule-Based Risk Engine
+         Rule Engine + Data Entry Pipelines
                          ↓
               SQLite Database (trinetra.db)
                          ↓
               Rust / Axum REST API (port 3000)
                          ↓
-           Vanilla JS Investigation Dashboard
+       Vanilla JS Investigation & Entry Platform
 ```
 
-A Python generator seeds a portable SQLite database with realistic benign and fraudulent subscriber traces across 8 distinct fraud scenarios. A Rust (Axum + SQLx) backend serves this data through a REST API and runs the rule-based risk engine on demand, auto-opening investigations for anything scoring HIGH or above. A single-page web dashboard (plain HTML + CSS + JavaScript, no build step required) connects to the API and provides a full investigation platform: subscriber browsing, device profiling, investigation management, and a live audit trail.
-
-Graph correlation and ML scoring are Phase 2/3 additions, not part of the current pipeline.
+A Python generator seeds a portable SQLite database with realistic benign and fraudulent subscriber traces across 8 distinct fraud scenarios. A Rust (Axum + SQLx) backend serves this data through 17 REST API endpoints, processes rule-based risk evaluations, handles entity write pipelines with audit logging, and auto-opens investigations for anything scoring HIGH or above. A single-page web dashboard connects to the API and provides a full investigation and operational platform: subscriber browsing, device profiling, data entry slide-in panel, sparkline trend charts, bulk evaluation, investigation management, and a live audit trail.
 
 ## Directory Structure
 
@@ -81,8 +80,9 @@ Graph correlation and ML scoring are Phase 2/3 additions, not part of the curren
 |---|---|
 | `data/` | Database migration scripts and the canonical portable database file `trinetra.db` |
 | `data-generator/` | Python simulator generating benign traces and 8 distinct fraud scenarios |
-| `backend/` | Rust Axum web API using SQLx for parameterized queries and the risk evaluation engine |
-| `frontend/` | Vanilla JS single-page investigation dashboard (no build step; open `index.html` directly) |
+| `backend/` | Rust Axum web API using SQLx for parameterized queries, write endpoints, and risk engine |
+| `frontend/` | Vanilla JS single-page investigation & data entry dashboard (no build step; open `index.html` directly) |
+| `log/` | Iteration walkthroughs and implementation documentation ([iter1.md](log/iter1.md), [iter2.md](log/iter2.md), [iter3.md](log/iter3.md)) |
 | `dataset/` | Public FraudZen bypass-fraud CDR trace data for external ML experiments |
 | `private/` | Project requirements, agent instruction manuals, and design guidelines |
 
@@ -117,23 +117,38 @@ Open `frontend/index.html` in any modern browser. The dashboard connects to the 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/subscribers` | List subscribers (paginated, supports `?q=` search) |
-| `GET` | `/api/subscribers/:id` | Full profile: active SIMs, device history, recent events, risk assessment history |
-| `POST` | `/api/subscribers/:id/evaluate` | Run the rule engine on a subscriber; auto-generates an investigation if score is HIGH or VERY HIGH |
+| `POST` | `/api/subscribers` | **Register new subscriber** (`201 Created`) |
+| `GET` | `/api/subscribers/:id` | Full profile: active SIMs, device history, recent CDR events, risk assessment history |
+| `POST` | `/api/subscribers/:id/sims` | **Add SIM card to subscriber** (`201 Created` / `409 Conflict`) |
+| `POST` | `/api/subscribers/:id/evaluate` | Run rule engine; auto-generates investigation if score is HIGH or VERY HIGH |
 
 ### Devices
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/devices` | List device entities (paginated, supports `?q=` search) |
-| `GET` | `/api/devices/:id` | Device profile with every SIM ever loaded and recent events |
+| `POST` | `/api/devices` | **Register new device profile** (`201 Created` / `409 Conflict` on duplicate IMEI) |
+| `GET` | `/api/devices/:id` | Device profile with associated SIMs and recent events |
+| `PUT` | `/api/devices/:id/status` | **Update device status** (`NORMAL` / `STOLEN` / `LOST`) |
 
-### Investigations & Audit
+### Fraud Reports, CDR Events & Auxiliary
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/fraud_reports` | **File official fraud report** (`201 Created`) |
+| `GET` | `/api/fraud_reports` | View all filed fraud reports |
+| `POST` | `/api/network_events` | **Log manual CDR network event** (`201 Created`) |
+| `POST` | `/api/pos` | **Register new Point of Sale** (`201 Created`) |
+| `GET` | `/api/pos` | List PoS locations for dropdowns |
+| `GET` | `/api/locations` | List geographic locations for CDR dropdowns |
+
+### Investigations & Audit Logs
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/investigations` | List active fraud investigations |
 | `PUT` | `/api/investigations/:id` | Update status (`PENDING` → `UNDER_REVIEW` → `RESOLVED`) and investigator notes |
-| `GET` | `/api/audit_logs` | Fetch the system audit trail |
+| `GET` | `/api/audit_logs` | Fetch the full system audit trail |
 
 ## Risk Engine
 
@@ -157,29 +172,44 @@ Scores map to categorical risk levels:
 | 50–74 | HIGH | Auto-opens investigation |
 | 75–100 | VERY HIGH | Auto-opens investigation |
 
-In Phase 2/3, ML anomaly scores and graph cluster indicators will feed into this same risk engine alongside the existing rules, without changing the explainability contract — every contributing factor to a score will still be individually listed.
+## Investigation Dashboard & Data Entry
 
-## Investigation Dashboard
+The `frontend/` directory contains a zero-dependency SPA built with plain HTML, CSS, and JavaScript implementing the IBM Carbon Design System.
 
-The `frontend/` directory contains a self-contained, zero-dependency SPA built with plain HTML, CSS, and JavaScript. It requires no package manager or build step — open `index.html` directly in a browser pointed at a running backend.
+**Dashboard pages & features:**
 
-**Dashboard pages:**
-
-| Page | What it shows |
+| Page / Component | Key Features |
 |---|---|
-| Dashboard | System-wide summary stats (subscriber count, active investigations, high-risk count, SIM totals) pulled live from the API |
-| Subscribers | Paginated, searchable subscriber list; click any row to view a full profile including SIMs, device history, CDR events, and past risk assessments; trigger on-demand risk evaluation from the profile page |
-| Devices | Paginated, searchable device registry; click any device to view IMEI details, all associated SIMs, and recent network events |
-| Investigations | Live investigation queue filterable by status (PENDING / UNDER_REVIEW / RESOLVED); inline modal to update status and append investigator notes |
-| Audit Log | Chronological system audit trail of all investigation updates |
+| **Dashboard** | Overview KPIs, Risk Breakdown, Quick Risk Evaluate, and **Bulk Evaluate Queue** (progress bar + rolling terminal log) |
+| **Subscribers** | Paginated table with inline **KYC & State column filters**, search bar, and "⊕ Register Subscriber" button |
+| **Subscriber Detail** | Metadata profile, **Risk Score Trend Sparkline** (Canvas API), "+ Add SIM" inline form, "+ Log CDR Event" inline form, "⚠ File Fraud Report" button |
+| **Devices** | Paginated device registry with inline **Status filter**, "⊕ Register Device" button, and row-level **"Mark Stolen" / "Mark Recovered"** action buttons |
+| **Data Entry Side Panel** | 480px slide-in side panel (`#side-panel`) with Carbon tabs for *Subscriber*, *Device*, *Fraud Report*, and *Point of Sale* |
+| **Investigations** | Status tabs (`ALL` / `PENDING` / `UNDER_REVIEW` / `RESOLVED`), risk score bars, modal dialog to assign investigators & notes |
+| **Audit Log** | Chronological audit trail recording all user write actions with `user = 'operator'` and details |
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `/` | Focus search bar on active page |
+| `Esc` | Close side panel, close modal, or go back to Subscribers list |
+| `Alt+D` | Quick navigate to Dashboard |
+| `Alt+S` | Quick navigate to Subscribers |
+| `Alt+V` | Quick navigate to Devices |
+| `Alt+I` | Quick navigate to Investigations |
+| `Alt+A` | Quick navigate to Audit Log |
 
 ## Roadmap
 
-Trinetra is developed in phases, from foundational detection through a full investigation platform and formal research evaluation.
+Trinetra is developed in phases:
 
-Upcoming proposed work for Iteration 3 of the Investigation Platform includes manual data entry pipelines (registering subscribers, SIMs, devices, filing fraud reports, logging CDR events) and UI enhancements (risk score trend sparklines, bulk evaluation queue, column filters, and keyboard shortcuts).
-
-Contributions and issue reports are welcome while the project is under development.
+- [x] **Phase 1 — Foundation & Detection**: Database schema, synthetic generator, Rust backend, 6-rule risk engine
+- [x] **Iteration 2 — Carbon UI SPA**: SPA dashboard, subscriber/device browser, investigation modal, audit log
+- [x] **Iteration 3 — Manual Data Entry & UI Enhancements**: 10 new API endpoints, slide-in side panel, sparkline trend chart, bulk evaluation queue, table column filters, keyboard shortcuts
+- [ ] **Phase 2 — Machine Learning Intelligence**: Isolation Forest, XGBoost anomaly scoring integrated into risk engine
+- [ ] **Phase 3 — Graph Intelligence**: NetworkX entity graph, cluster detection across shared IMEIs and PoS networks
+- [ ] **Phase 5 — Research & Evaluation**: Precision/Recall/ROC-AUC benchmarking report
 
 ## License
 

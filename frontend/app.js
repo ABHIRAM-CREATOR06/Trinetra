@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
-   TRINETRA — app.js
-   SPA Router + API Layer + Page Renderers
+   TRINETRA — app.js (Iteration 3)
+   SPA Router + API Layer + Page Renderers + Manual Data Entry
    Backend: http://127.0.0.1:3000
    ═══════════════════════════════════════════════════════════ */
 
@@ -14,11 +14,15 @@ const state = {
   subscriberOffset: 0,
   subscriberLimit: 25,
   subscriberQuery: '',
+  subscriberKycFilter: 'ALL',
+  subscriberStateFilter: 'ALL',
   deviceOffset: 0,
   deviceLimit: 25,
   deviceQuery: '',
+  deviceStatusFilter: 'ALL',
   invFilter: 'ALL',
   currentInvestigation: null,
+  activeSideTab: 'subscriber',
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -54,8 +58,8 @@ async function checkBackend() {
 function setStatus(cls, label) {
   const dot = document.getElementById('status-dot');
   const lbl = document.getElementById('status-label');
-  dot.className = 'status-dot ' + cls;
-  lbl.textContent = label;
+  if (dot) dot.className = 'status-dot ' + cls;
+  if (lbl) lbl.textContent = label;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -151,7 +155,7 @@ function kycBadge(status) {
 }
 
 function deviceBadge(status) {
-  const cls = status === 'STOLEN' ? 'badge-stolen' : 'badge-normal';
+  const cls = status === 'STOLEN' ? 'badge-stolen' : status === 'LOST' ? 'badge-pending-inv' : 'badge-normal';
   return `<span class="badge ${cls}">${escHtml(status)}</span>`;
 }
 
@@ -202,28 +206,135 @@ function rulesToString(rules) {
 }
 
 function setBreadcrumb(text) {
-  document.getElementById('utility-breadcrumb').textContent = text;
+  const el = document.getElementById('utility-breadcrumb');
+  if (el) el.textContent = text;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   TOAST
+   TOAST NOTIFICATIONS
    ═══════════════════════════════════════════════════════════ */
 
 let toastTimer = null;
 
 function showToast(msg, durationMs = 4000) {
   const t = document.getElementById('toast');
+  if (!t) return;
   document.getElementById('toast-message').textContent = msg;
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.add('hidden'), durationMs);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('toast-close').addEventListener('click', () => {
-    document.getElementById('toast').classList.add('hidden');
+/* ═══════════════════════════════════════════════════════════
+   PILLAR A1: RISK SCORE SPARKLINE CANVAS RENDERER
+   ═══════════════════════════════════════════════════════════ */
+
+function renderRiskSparkline(canvasId, assessments) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+  ctx.clearRect(0, 0, w, h);
+
+  if (!assessments || assessments.length === 0) {
+    ctx.fillStyle = '#6e6e6e';
+    ctx.font = '12px IBM Plex Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No historical assessment points available', w / 2, h / 2);
+    return;
+  }
+
+  // Sort chronologically (oldest to newest)
+  const sorted = [...assessments].sort((a, b) => new Date(a.timestamp || a.created_at) - new Date(b.timestamp || b.created_at));
+
+  const padL = 70;
+  const padR = 30;
+  const padT = 25;
+  const padB = 30;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+
+  // Threshold lines at 25, 50, 75
+  const thresholds = [
+    { val: 25, label: '25 (MEDIUM)', color: 'rgba(241, 194, 27, 0.4)' },
+    { val: 50, label: '50 (HIGH)',   color: 'rgba(218, 30, 40, 0.4)' },
+    { val: 75, label: '75 (V.HIGH)', color: 'rgba(255, 0, 50, 0.6)' },
+  ];
+
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.font = '10px IBM Plex Sans, sans-serif';
+  thresholds.forEach(t => {
+    const y = padT + chartH * (1 - t.val / 100);
+    ctx.strokeStyle = t.color;
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(w - padR, y);
+    ctx.stroke();
+
+    ctx.fillStyle = '#8d8d8d';
+    ctx.textAlign = 'right';
+    ctx.fillText(t.label, padL - 6, y + 3);
   });
-});
+  ctx.setLineDash([]);
+
+  // Plot data points
+  const points = sorted.map((item, idx) => {
+    const score = Math.min(100, Math.max(0, item.risk_score || 0));
+    const x = sorted.length === 1 ? padL + chartW / 2 : padL + (idx / (sorted.length - 1)) * chartW;
+    const y = padT + chartH * (1 - score / 100);
+    return { x, y, score, item };
+  });
+
+  // Vertical gradient fill under sparkline
+  const grad = ctx.createLinearGradient(0, padT, 0, padT + chartH);
+  grad.addColorStop(0, 'rgba(218, 30, 40, 0.35)');
+  grad.addColorStop(0.5, 'rgba(241, 194, 27, 0.25)');
+  grad.addColorStop(1, 'rgba(36, 161, 72, 0.15)');
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, padT + chartH);
+  points.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(points[points.length - 1].x, padT + chartH);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Draw line
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.strokeStyle = '#0f62fe';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // Draw dots and score bubbles
+  points.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = p.score >= 50 ? '#da1e28' : p.score >= 25 ? '#f1c21b' : '#24a148';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+
+    ctx.fillStyle = '#f4f4f4';
+    ctx.font = 'bold 11px IBM Plex Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.score, p.x, p.y - 8);
+  });
+}
 
 /* ═══════════════════════════════════════════════════════════
    PAGE 1: DASHBOARD
@@ -240,7 +351,6 @@ async function renderDashboard() {
       apiFetch('/api/investigations'),
     ]);
 
-    // KPI: get full counts via separate larger fetches
     const allSubs = await apiFetch('/api/subscribers?limit=10000');
     const allDevs = await apiFetch('/api/devices?limit=10000');
 
@@ -249,14 +359,12 @@ async function renderDashboard() {
     const invList    = Array.isArray(investigations) ? investigations : [];
     const activeInv  = invList.filter(i => i.status !== 'RESOLVED').length;
 
-    // Risk level breakdown from investigations
     const riskCounts = { LOW: 0, MEDIUM: 0, HIGH: 0, 'VERY HIGH': 0 };
     invList.forEach(i => {
       const lvl = i.risk_level;
       if (riskCounts.hasOwnProperty(lvl)) riskCounts[lvl]++;
     });
 
-    // Recent investigations (top 8)
     const recentInv = invList.slice(0, 8);
 
     setContent(`
@@ -324,8 +432,33 @@ async function renderDashboard() {
         </div>
       </div>
 
+      <!-- Pillar A2: Bulk Evaluate Queue -->
+      <div class="bulk-eval-card">
+        <div class="flex-between">
+          <div>
+            <div class="card-title" style="margin:0">Bulk Evaluate Queue (Pillar A2)</div>
+            <div class="text-subtle" style="font-size:12px;margin-top:2px">Sequentially re-evaluate flagged subscribers and auto-trigger investigations</div>
+          </div>
+          <div class="flex-between gap-sm">
+            <select class="filter-select" id="bulk-filter-select">
+              <option value="ALL_FLAGGED">All Flagged (SIM > 9 OR KYC Pending)</option>
+              <option value="SIM_CONCENTRATION">High SIM Concentration (SIM > 9)</option>
+              <option value="KYC_PENDING">KYC Status = PENDING</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="btn-run-bulk-eval">Evaluate Flagged Queue</button>
+          </div>
+        </div>
+        <div class="bulk-progress-bg">
+          <div class="bulk-progress-fill" id="bulk-progress-fill"></div>
+        </div>
+        <div class="flex-between" style="font-size:12px;color:var(--c-ink-muted)">
+          <span id="bulk-status-text">Ready to run queue</span>
+        </div>
+        <div class="rolling-log-box" id="bulk-log-box">[System Idle] Click "Evaluate Flagged Queue" to begin processing.</div>
+      </div>
+
       <!-- Recent Investigations Table -->
-      <div class="card">
+      <div class="card mt-lg">
         <div class="card-title">Recent Investigations</div>
         ${recentInv.length === 0
           ? '<div class="empty-state">No investigations found.</div>'
@@ -356,13 +489,10 @@ async function renderDashboard() {
               </table>
             </div>`
         }
-        <div style="padding: var(--sp-sm) 0">
-          <button class="btn btn-ghost btn-sm" onclick="navigate('investigations')">View all investigations →</button>
-        </div>
       </div>
     `);
 
-    // Evaluate button handler
+    // Wire single evaluate
     document.getElementById('eval-btn').addEventListener('click', () => {
       const id = document.getElementById('eval-input').value.trim();
       if (!id) return;
@@ -372,6 +502,9 @@ async function renderDashboard() {
       if (e.key === 'Enter') document.getElementById('eval-btn').click();
     });
 
+    // Wire bulk evaluate
+    document.getElementById('btn-run-bulk-eval').addEventListener('click', runBulkEvaluate);
+
   } catch (err) {
     errorState('Could not load dashboard: ' + err.message);
   }
@@ -379,8 +512,8 @@ async function renderDashboard() {
 
 async function runEvaluate(id, resultEl) {
   resultEl.style.display = 'block';
-  resultEl.className = 'evaluate-result';
-  resultEl.innerHTML = '<div class="loading-spinner" style="width:20px;height:20px;margin:auto"></div>';
+  resultEl.className = 'evaluate-result loading-result';
+  resultEl.textContent = 'Evaluating subscriber…';
 
   try {
     const res = await apiFetch(`/api/subscribers/${encodeURIComponent(id)}/evaluate`, { method: 'POST' });
@@ -388,15 +521,11 @@ async function runEvaluate(id, resultEl) {
     const level = res.risk_level;
     const rules = rulesToString(res.rules_triggered);
 
-    let cls = 'success';
-    if (level === 'HIGH' || level === 'VERY HIGH') cls = 'error-result';
-    else if (level === 'MEDIUM') cls = 'warning';
-
-    resultEl.className = 'evaluate-result ' + cls;
+    resultEl.className = 'evaluate-result success-result';
     resultEl.innerHTML = `
-      <div class="eval-score-display">
-        <div class="eval-score-num" style="${riskScoreTextColor(level)}">${score}</div>
-        <div class="eval-score-info">
+      <div class="eval-score-row">
+        <div class="eval-score-circle ${riskScoreColor(score)}">${score}</div>
+        <div>
           <div class="eval-score-level">${escHtml(id)} — ${riskBadge(level)}</div>
           <div class="eval-rules-list">${rules ? 'Rules: ' + escHtml(rules) : 'No rules triggered'}</div>
         </div>
@@ -409,8 +538,63 @@ async function runEvaluate(id, resultEl) {
   }
 }
 
+async function runBulkEvaluate() {
+  const filterType = document.getElementById('bulk-filter-select').value;
+  const btn = document.getElementById('btn-run-bulk-eval');
+  const progressFill = document.getElementById('bulk-progress-fill');
+  const statusText = document.getElementById('bulk-status-text');
+  const logBox = document.getElementById('bulk-log-box');
+
+  btn.disabled = true;
+  logBox.textContent = `[${new Date().toLocaleTimeString()}] Fetching subscribers for queue filter (${filterType})…\n`;
+
+  try {
+    const subscribers = await apiFetch('/api/subscribers?limit=10000');
+    let queue = [];
+    if (filterType === 'SIM_CONCENTRATION') {
+      queue = subscribers.filter(s => s.sim_count > 9);
+    } else if (filterType === 'KYC_PENDING') {
+      queue = subscribers.filter(s => s.kyc_status === 'PENDING');
+    } else {
+      queue = subscribers.filter(s => s.sim_count > 9 || s.kyc_status === 'PENDING' || s.kyc_status === 'REJECTED');
+    }
+
+    if (queue.length === 0) {
+      logBox.textContent += `[${new Date().toLocaleTimeString()}] No subscribers match filter criteria.\n`;
+      btn.disabled = false;
+      return;
+    }
+
+    logBox.textContent += `[${new Date().toLocaleTimeString()}] Starting sequential evaluation of ${queue.length} subscriber(s)…\n`;
+
+    let done = 0;
+    for (const sub of queue) {
+      try {
+        const res = await apiFetch(`/api/subscribers/${encodeURIComponent(sub.subscriber_id)}/evaluate`, { method: 'POST' });
+        done++;
+        const pct = Math.round((done / queue.length) * 100);
+        progressFill.style.width = pct + '%';
+        statusText.textContent = `Evaluating: ${done} / ${queue.length} (${pct}%)`;
+        logBox.textContent += `[${new Date().toLocaleTimeString()}] Evaluated ${sub.subscriber_id} → Score: ${res.risk_score} (${res.risk_level})\n`;
+        logBox.scrollTop = logBox.scrollHeight;
+      } catch (e) {
+        done++;
+        logBox.textContent += `[${new Date().toLocaleTimeString()}] Error evaluating ${sub.subscriber_id}: ${e.message}\n`;
+      }
+    }
+
+    logBox.textContent += `[${new Date().toLocaleTimeString()}] Bulk evaluation complete! Refreshing dashboard metrics…\n`;
+    showToast(`Bulk Evaluation Complete: ${queue.length} subscribers processed.`);
+    setTimeout(renderDashboard, 1200);
+  } catch (err) {
+    logBox.textContent += `[ERROR] ${err.message}\n`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════
-   PAGE 2: SUBSCRIBERS LIST
+   PAGE 2: SUBSCRIBERS LIST (With Pillar A3 Column Filters)
    ═══════════════════════════════════════════════════════════ */
 
 async function renderSubscribers() {
@@ -424,16 +608,49 @@ async function renderSubscribers() {
   try {
     const list = await apiFetch(`/api/subscribers?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`);
 
+    const allStates = Array.from(new Set(list.map(s => s.state).filter(Boolean))).sort();
+
+    let filteredList = list;
+    if (state.subscriberKycFilter !== 'ALL') {
+      filteredList = filteredList.filter(s => s.kyc_status === state.subscriberKycFilter);
+    }
+    if (state.subscriberStateFilter !== 'ALL') {
+      filteredList = filteredList.filter(s => s.state === state.subscriberStateFilter);
+    }
+
     setContent(`
-      <div class="page-header">
-        <h1 class="page-title">Subscribers</h1>
-        <p class="page-subtitle">All registered telecom subscribers. Click a row to view full profile.</p>
+      <div class="page-header flex-between">
+        <div>
+          <h1 class="page-title">Subscribers</h1>
+          <p class="page-subtitle">All registered telecom subscribers. Click a row to view full profile.</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openDataEntryPanel('subscriber')">⊕ Register Subscriber</button>
       </div>
 
       <div class="search-bar">
         <input type="text" class="search-input" id="sub-search"
-          placeholder="Search by ID, state, or KYC status…" value="${escHtml(q)}" />
+          placeholder="Search by ID, state, or KYC status… (/ to focus)" value="${escHtml(q)}" />
         <button class="search-btn" id="sub-search-btn">Search</button>
+      </div>
+
+      <!-- Pillar A3: Column Filter Bar -->
+      <div class="table-filter-bar">
+        <div class="table-filter-item">
+          <span>KYC Filter:</span>
+          <select class="filter-select" id="filter-sub-kyc">
+            <option value="ALL" ${state.subscriberKycFilter === 'ALL' ? 'selected' : ''}>All KYC Statuses</option>
+            <option value="VERIFIED" ${state.subscriberKycFilter === 'VERIFIED' ? 'selected' : ''}>VERIFIED</option>
+            <option value="PENDING" ${state.subscriberKycFilter === 'PENDING' ? 'selected' : ''}>PENDING</option>
+            <option value="REJECTED" ${state.subscriberKycFilter === 'REJECTED' ? 'selected' : ''}>REJECTED</option>
+          </select>
+        </div>
+        <div class="table-filter-item">
+          <span>State Filter:</span>
+          <select class="filter-select" id="filter-sub-state">
+            <option value="ALL" ${state.subscriberStateFilter === 'ALL' ? 'selected' : ''}>All States</option>
+            ${allStates.map(st => `<option value="${escHtml(st)}" ${state.subscriberStateFilter === st ? 'selected' : ''}>${escHtml(st)}</option>`).join('')}
+          </select>
+        </div>
       </div>
 
       <div class="table-wrapper">
@@ -450,9 +667,9 @@ async function renderSubscribers() {
             </tr>
           </thead>
           <tbody>
-            ${list.length === 0
-              ? '<tr><td colspan="7" style="text-align:center;color:var(--c-ink-subtle);padding:32px">No subscribers found.</td></tr>'
-              : list.map(s => `
+            ${filteredList.length === 0
+              ? '<tr><td colspan="7" style="text-align:center;color:var(--c-ink-subtle);padding:32px">No subscribers match search/filter criteria.</td></tr>'
+              : filteredList.map(s => `
                 <tr class="clickable" onclick="navigate('subscriber/${escHtml(s.subscriber_id)}')">
                   <td class="mono text-primary">${escHtml(s.subscriber_id)}</td>
                   <td>${escHtml(s.state)}</td>
@@ -469,13 +686,12 @@ async function renderSubscribers() {
       </div>
 
       <div class="pagination">
-        <span class="pagination-info">Showing ${offset + 1}–${offset + list.length} (${list.length < limit ? 'end of results' : 'more available'})</span>
+        <span class="pagination-info">Showing ${offset + 1}–${offset + filteredList.length} (${list.length < limit ? 'end of results' : 'more available'})</span>
         <button class="pagination-btn" id="prev-btn" ${offset === 0 ? 'disabled' : ''}>← Previous</button>
         <button class="pagination-btn" id="next-btn" ${list.length < limit ? 'disabled' : ''}>Next →</button>
       </div>
     `);
 
-    // Event handlers
     document.getElementById('sub-search-btn').addEventListener('click', () => {
       state.subscriberQuery  = document.getElementById('sub-search').value.trim();
       state.subscriberOffset = 0;
@@ -483,6 +699,14 @@ async function renderSubscribers() {
     });
     document.getElementById('sub-search').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('sub-search-btn').click();
+    });
+    document.getElementById('filter-sub-kyc').addEventListener('change', e => {
+      state.subscriberKycFilter = e.target.value;
+      renderSubscribers();
+    });
+    document.getElementById('filter-sub-state').addEventListener('change', e => {
+      state.subscriberStateFilter = e.target.value;
+      renderSubscribers();
     });
     document.getElementById('prev-btn').addEventListener('click', () => {
       state.subscriberOffset = Math.max(0, offset - limit);
@@ -499,7 +723,7 @@ async function renderSubscribers() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   PAGE 3: SUBSCRIBER DETAIL
+   PAGE 3: SUBSCRIBER DETAIL (With Sparkline & Contextual Forms)
    ═══════════════════════════════════════════════════════════ */
 
 async function renderSubscriberDetail(id) {
@@ -509,10 +733,13 @@ async function renderSubscriberDetail(id) {
   try {
     const sub = await apiFetch(`/api/subscribers/${encodeURIComponent(id)}`);
 
+    const primaryMobile = (sub.sims && sub.sims.length > 0) ? sub.sims[0].mobile_number : '';
+
     const simsRows = (sub.sims || []).map(s => `
       <tr>
-        <td class="mono" style="font-size:12px">${escHtml(s.sim_id || s.msisdn || '—')}</td>
-        <td class="mono" style="font-size:12px">${escHtml(s.msisdn || '—')}</td>
+        <td class="mono" style="font-size:12px">${escHtml(s.sim_id || '—')}</td>
+        <td class="mono" style="font-size:12px">${escHtml(s.mobile_number || '—')}</td>
+        <td>${escHtml(s.operator || '—')}</td>
         <td>${escHtml(s.status || '—')}</td>
         <td class="text-subtle" style="font-size:12px">${fmtDate(s.activation_date)}</td>
       </tr>
@@ -528,35 +755,15 @@ async function renderSubscriberDetail(id) {
 
     const eventsRows = (sub.recent_events || []).slice(0, 20).map(e => `
       <tr>
-        <td class="mono" style="font-size:12px">${escHtml(e.msisdn || e.sim_id || '—')}</td>
-        <td>${escHtml(e.event_type || e.network_type || '—')}</td>
-        <td>${escHtml(e.cell_id || e.location_id || '—')}</td>
+        <td class="mono" style="font-size:12px">${escHtml(e.mobile_number || '—')}</td>
+        <td>${escHtml(e.event_type || '—')}</td>
+        <td>${escHtml(e.location_id || '—')}</td>
         <td>${escHtml(e.state || '—')}</td>
-        <td class="text-subtle" style="font-size:12px">${fmtDatetime(e.event_timestamp || e.timestamp)}</td>
+        <td class="text-subtle" style="font-size:12px">${fmtDatetime(e.timestamp)}</td>
       </tr>
     `).join('');
 
     const assessments = sub.recent_assessments || [];
-    const timelineHtml = assessments.length === 0
-      ? '<div class="empty-state">No risk assessments yet. Click "Evaluate Risk" to run the first assessment.</div>'
-      : `<div class="timeline">
-          ${assessments.map(a => {
-            const sc = a.risk_score || 0;
-            const lvl = a.risk_level || 'LOW';
-            return `
-            <div class="timeline-item">
-              <div class="timeline-score">
-                <span class="timeline-score-val" style="${riskScoreTextColor(lvl)}">${sc}</span>
-                <span class="timeline-score-max">/100</span>
-              </div>
-              <div class="timeline-body">
-                <div class="timeline-level">${riskBadge(lvl)}</div>
-                <div class="timeline-rules">${escHtml(rulesToString(a.rules_triggered)) || 'No rules triggered'}</div>
-                <div class="timeline-ts">${fmtDatetime(a.evaluated_at || a.created_at)}</div>
-              </div>
-            </div>`;
-          }).join('')}
-        </div>`;
 
     setContent(`
       <div class="breadcrumb">
@@ -597,19 +804,60 @@ async function renderSubscriberDetail(id) {
             <span class="detail-meta-value">${(sub.sims || []).length}</span>
           </div>
         </div>
-        <button class="btn btn-primary" id="evaluate-btn">Evaluate Risk</button>
+        <div class="flex-between gap-sm" style="margin-top: var(--sp-md);">
+          <button class="btn btn-secondary btn-sm" id="btn-file-fraud-header">⚠ File Fraud Report</button>
+          <button class="btn btn-primary" id="evaluate-btn">Evaluate Risk</button>
+        </div>
       </div>
 
       <div id="detail-eval-result"></div>
 
-      <!-- SIMs Section -->
+      <!-- Pillar A1: Risk Score Trend Chart -->
+      <div class="sparkline-card">
+        <div class="sparkline-header">
+          <span class="sparkline-title">Risk Score Trend (Pillar A1 Sparkline)</span>
+          <span class="text-subtle" style="font-size:12px">${assessments.length} assessment(s) recorded</span>
+        </div>
+        <div class="sparkline-canvas-container">
+          <canvas id="risk-trend-canvas" class="sparkline-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- SIMs Section + Add SIM Inline Form -->
       <div class="detail-section">
-        <div class="detail-section-title">Associated SIM Cards (${(sub.sims || []).length})</div>
+        <div class="flex-between">
+          <div class="detail-section-title" style="margin:0">Associated SIM Cards (${(sub.sims || []).length})</div>
+          <button class="btn btn-tertiary btn-sm" onclick="toggleInlineForm('inline-sim-form')">+ Add SIM</button>
+        </div>
+
+        <div id="inline-sim-form" class="collapsible-box hidden">
+          <div class="card-title">Register New SIM Card to ${escHtml(id)}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Mobile Number <span class="required">*</span></label>
+              <input type="text" class="form-input" id="sim-mobile-input" placeholder="e.g. 9876543210" />
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Operator <span class="required">*</span></label>
+              <select class="form-select" id="sim-operator-input">
+                <option value="Airtel">Airtel</option>
+                <option value="Jio">Jio</option>
+                <option value="Vi">Vi</option>
+                <option value="BSNL">BSNL</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions" style="margin-top:12px;padding-top:8px">
+            <button class="btn btn-secondary btn-sm" onclick="toggleInlineForm('inline-sim-form')">Cancel</button>
+            <button class="btn btn-primary btn-sm" id="btn-submit-inline-sim">Save SIM Card</button>
+          </div>
+        </div>
+
         ${(sub.sims || []).length === 0
-          ? '<div class="empty-state">No SIM cards found.</div>'
-          : `<div class="table-wrapper">
+          ? '<div class="empty-state mt-md">No SIM cards found.</div>'
+          : `<div class="table-wrapper mt-md">
               <table class="data-table">
-                <thead><tr><th>SIM ID</th><th>MSISDN</th><th>Status</th><th>Activation Date</th></tr></thead>
+                <thead><tr><th>SIM ID</th><th>Mobile Number</th><th>Operator</th><th>Status</th><th>Activation Date</th></tr></thead>
                 <tbody>${simsRows}</tbody>
               </table>
             </div>`
@@ -625,28 +873,73 @@ async function renderSubscriberDetail(id) {
         }
       </div>
 
-      <!-- Network Events Section -->
+      <!-- Network Events Section + Log CDR Event Inline Form -->
       <div class="detail-section">
-        <div class="detail-section-title">Network Events (last 20)</div>
+        <div class="flex-between">
+          <div class="detail-section-title" style="margin:0">Network Events (last 20)</div>
+          <button class="btn btn-tertiary btn-sm" onclick="toggleInlineForm('inline-cdr-form')">+ Log CDR Event</button>
+        </div>
+
+        <div id="inline-cdr-form" class="collapsible-box hidden">
+          <div class="card-title">Log CDR Event manually</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Mobile Number</label>
+              <select class="form-select" id="cdr-mobile-select">
+                ${(sub.sims || []).map(s => `<option value="${escHtml(s.mobile_number)}">${escHtml(s.mobile_number)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Event Type</label>
+              <select class="form-select" id="cdr-type-select">
+                <option value="CALL">CALL</option>
+                <option value="SMS">SMS</option>
+                <option value="DATA">DATA</option>
+                <option value="ROAMING">ROAMING</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Location ID</label>
+              <select class="form-select" id="cdr-loc-select">
+                <option value="">Loading locations…</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions" style="margin-top:12px;padding-top:8px">
+            <button class="btn btn-secondary btn-sm" onclick="toggleInlineForm('inline-cdr-form')">Cancel</button>
+            <button class="btn btn-primary btn-sm" id="btn-submit-inline-cdr">Submit CDR Event</button>
+          </div>
+        </div>
+
         ${(sub.recent_events || []).length === 0
-          ? '<div class="empty-state">No network events found.</div>'
-          : `<div class="table-wrapper" style="max-height:320px;overflow-y:auto">
+          ? '<div class="empty-state mt-md">No network events found.</div>'
+          : `<div class="table-wrapper mt-md" style="max-height:320px;overflow-y:auto">
               <table class="data-table">
-                <thead><tr><th>MSISDN</th><th>Event Type</th><th>Cell / Location</th><th>State</th><th>Timestamp</th></tr></thead>
+                <thead><tr><th>Mobile Number</th><th>Event Type</th><th>Location ID</th><th>State</th><th>Timestamp</th></tr></thead>
                 <tbody>${eventsRows}</tbody>
               </table>
             </div>`
         }
       </div>
-
-      <!-- Risk Assessment History -->
-      <div class="detail-section">
-        <div class="detail-section-title">Risk Assessment History (${assessments.length})</div>
-        ${timelineHtml}
-      </div>
     `);
 
-    // Evaluate button
+    // Render Canvas Sparkline
+    setTimeout(() => renderRiskSparkline('risk-trend-canvas', assessments), 50);
+
+    // Populate Location dropdown for CDR form asynchronously
+    apiFetch('/api/locations').then(locs => {
+      const locSelect = document.getElementById('cdr-loc-select');
+      if (locSelect && Array.isArray(locs)) {
+        locSelect.innerHTML = locs.map(l => `<option value="${escHtml(l.location_id)}">${escHtml(l.location_id)} (${escHtml(l.state)} - ${escHtml(l.district)})</option>`).join('');
+      }
+    }).catch(() => {});
+
+    // File Fraud Report header button handler
+    document.getElementById('btn-file-fraud-header').addEventListener('click', () => {
+      openDataEntryPanel('fraud', primaryMobile);
+    });
+
+    // Evaluate Risk button handler
     document.getElementById('evaluate-btn').addEventListener('click', () => {
       const btn = document.getElementById('evaluate-btn');
       btn.disabled = true;
@@ -656,7 +949,47 @@ async function renderSubscriberDetail(id) {
       runEvaluate(id, resultEl).finally(() => {
         btn.disabled = false;
         btn.textContent = 'Evaluate Risk';
+        setTimeout(() => renderSubscriberDetail(id), 1000);
       });
+    });
+
+    // Submit Add SIM inline form
+    document.getElementById('btn-submit-inline-sim').addEventListener('click', async () => {
+      const mobile = document.getElementById('sim-mobile-input').value.trim();
+      const operator = document.getElementById('sim-operator-input').value;
+      if (!mobile) { showToast('Mobile number is required', 3000); return; }
+
+      try {
+        await apiFetch(`/api/subscribers/${encodeURIComponent(id)}/sims`, {
+          method: 'POST',
+          body: JSON.stringify({ mobile_number: mobile, operator }),
+        });
+        showToast(`SIM card ${mobile} added successfully.`);
+        renderSubscriberDetail(id);
+      } catch (err) {
+        showToast('Error adding SIM: ' + err.message, 5000);
+      }
+    });
+
+    // Submit CDR Event inline form
+    document.getElementById('btn-submit-inline-cdr').addEventListener('click', async () => {
+      const mobile = document.getElementById('cdr-mobile-select').value;
+      const event_type = document.getElementById('cdr-type-select').value;
+      const location_id = document.getElementById('cdr-loc-select').value;
+      const devId = (sub.recent_devices && sub.recent_devices.length > 0) ? sub.recent_devices[0].device_id : 'DEV_MANUAL_001';
+
+      if (!mobile || !location_id) { showToast('Mobile number and location are required', 3000); return; }
+
+      try {
+        await apiFetch('/api/network_events', {
+          method: 'POST',
+          body: JSON.stringify({ mobile_number: mobile, device_id: devId, location_id, event_type }),
+        });
+        showToast(`Network event (${event_type}) logged for ${mobile}.`);
+        renderSubscriberDetail(id);
+      } catch (err) {
+        showToast('Error logging event: ' + err.message, 5000);
+      }
     });
 
   } catch (err) {
@@ -664,8 +997,13 @@ async function renderSubscriberDetail(id) {
   }
 }
 
+function toggleInlineForm(elementId) {
+  const el = document.getElementById(elementId);
+  if (el) el.classList.toggle('hidden');
+}
+
 /* ═══════════════════════════════════════════════════════════
-   PAGE 4: DEVICES LIST
+   PAGE 4: DEVICES LIST (With Pillar B4 Row Actions & Column Filters)
    ═══════════════════════════════════════════════════════════ */
 
 async function renderDevices() {
@@ -679,16 +1017,37 @@ async function renderDevices() {
   try {
     const list = await apiFetch(`/api/devices?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`);
 
+    let filteredList = list;
+    if (state.deviceStatusFilter !== 'ALL') {
+      filteredList = filteredList.filter(d => d.status === state.deviceStatusFilter);
+    }
+
     setContent(`
-      <div class="page-header">
-        <h1 class="page-title">Devices</h1>
-        <p class="page-subtitle">All registered IMEIs and device profiles.</p>
+      <div class="page-header flex-between">
+        <div>
+          <h1 class="page-title">Devices</h1>
+          <p class="page-subtitle">All registered IMEIs and device profiles.</p>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openDataEntryPanel('device')">⊕ Register Device</button>
       </div>
 
       <div class="search-bar">
         <input type="text" class="search-input" id="dev-search"
-          placeholder="Search by IMEI, model, or manufacturer…" value="${escHtml(q)}" />
+          placeholder="Search by IMEI, model, or manufacturer… (/ to focus)" value="${escHtml(q)}" />
         <button class="search-btn" id="dev-search-btn">Search</button>
+      </div>
+
+      <!-- Pillar A3: Device Column Filter Bar -->
+      <div class="table-filter-bar">
+        <div class="table-filter-item">
+          <span>Status Filter:</span>
+          <select class="filter-select" id="filter-dev-status">
+            <option value="ALL" ${state.deviceStatusFilter === 'ALL' ? 'selected' : ''}>All Device Statuses</option>
+            <option value="NORMAL" ${state.deviceStatusFilter === 'NORMAL' ? 'selected' : ''}>NORMAL</option>
+            <option value="STOLEN" ${state.deviceStatusFilter === 'STOLEN' ? 'selected' : ''}>STOLEN</option>
+            <option value="LOST" ${state.deviceStatusFilter === 'LOST' ? 'selected' : ''}>LOST</option>
+          </select>
+        </div>
       </div>
 
       <div class="table-wrapper">
@@ -700,22 +1059,27 @@ async function renderDevices() {
               <th>Manufacturer</th>
               <th>Status</th>
               <th>TAC</th>
-              <th>First Seen</th>
               <th>Last Seen</th>
+              <th>Actions (Pillar B4)</th>
             </tr>
           </thead>
           <tbody>
-            ${list.length === 0
+            ${filteredList.length === 0
               ? '<tr><td colspan="7" style="text-align:center;color:var(--c-ink-subtle);padding:32px">No devices found.</td></tr>'
-              : list.map(d => `
+              : filteredList.map(d => `
                 <tr>
                   <td class="mono" style="font-size:12px">${escHtml(d.imei)}</td>
                   <td>${escHtml(d.device_model)}</td>
                   <td class="text-muted">${escHtml(d.manufacturer)}</td>
                   <td>${deviceBadge(d.status)}</td>
                   <td class="mono text-subtle" style="font-size:12px">${escHtml(d.tac)}</td>
-                  <td class="text-subtle" style="font-size:12px">${fmtDate(d.first_seen)}</td>
                   <td class="text-subtle" style="font-size:12px">${fmtDate(d.last_seen)}</td>
+                  <td>
+                    ${d.status === 'STOLEN' || d.status === 'LOST'
+                      ? `<button class="btn btn-secondary btn-sm" onclick="toggleDeviceStatus('${escHtml(d.device_id)}', 'NORMAL')">Mark Recovered</button>`
+                      : `<button class="btn btn-danger btn-sm" onclick="toggleDeviceStatus('${escHtml(d.device_id)}', 'STOLEN')">Mark Stolen</button>`
+                    }
+                  </td>
                 </tr>
               `).join('')
             }
@@ -724,7 +1088,7 @@ async function renderDevices() {
       </div>
 
       <div class="pagination">
-        <span class="pagination-info">Showing ${offset + 1}–${offset + list.length}</span>
+        <span class="pagination-info">Showing ${offset + 1}–${offset + filteredList.length}</span>
         <button class="pagination-btn" id="dev-prev-btn" ${offset === 0 ? 'disabled' : ''}>← Previous</button>
         <button class="pagination-btn" id="dev-next-btn" ${list.length < limit ? 'disabled' : ''}>Next →</button>
       </div>
@@ -738,6 +1102,10 @@ async function renderDevices() {
     document.getElementById('dev-search').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('dev-search-btn').click();
     });
+    document.getElementById('filter-dev-status').addEventListener('change', e => {
+      state.deviceStatusFilter = e.target.value;
+      renderDevices();
+    });
     document.getElementById('dev-prev-btn').addEventListener('click', () => {
       state.deviceOffset = Math.max(0, offset - limit);
       renderDevices();
@@ -749,6 +1117,19 @@ async function renderDevices() {
 
   } catch (err) {
     errorState('Could not load devices: ' + err.message);
+  }
+}
+
+async function toggleDeviceStatus(deviceId, newStatus) {
+  try {
+    await apiFetch(`/api/devices/${encodeURIComponent(deviceId)}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus }),
+    });
+    showToast(`Device ${deviceId} marked as ${newStatus}.`);
+    renderDevices();
+  } catch (err) {
+    showToast('Error updating device: ' + err.message, 5000);
   }
 }
 
@@ -839,15 +1220,12 @@ function renderInvestigationPage(invList) {
     ${cardsHtml}
   `);
 
-  // Store list in a module-level cache for tab switching
   window.invListCache = invList;
 }
 
 window.renderInvestigationPageFromCache = function(list) {
   renderInvestigationPage(list || []);
 };
-
-/* ── Investigation Update Modal ──────────────────────────── */
 
 window.openInvestigationModal = function(inv) {
   state.currentInvestigation = inv;
@@ -895,9 +1273,9 @@ async function submitModal() {
   btn.textContent = 'Updating…';
 
   const payload = {
-    status:         document.getElementById('modal-status').value,
+    status:          document.getElementById('modal-status').value,
     investigator_id: document.getElementById('modal-investigator').value.trim() || null,
-    notes:          document.getElementById('modal-notes').value.trim() || null,
+    notes:           document.getElementById('modal-notes').value.trim() || null,
   };
 
   try {
@@ -938,25 +1316,22 @@ async function renderAuditLog() {
           <thead>
             <tr>
               <th>Action</th>
-              <th>Target</th>
-              <th>User / System</th>
+              <th>User</th>
               <th>Details</th>
               <th>Timestamp</th>
             </tr>
           </thead>
           <tbody>
             ${list.length === 0
-              ? '<tr><td colspan="5" style="text-align:center;color:var(--c-ink-subtle);padding:32px">No audit log entries.</td></tr>'
+              ? '<tr><td colspan="4" style="text-align:center;color:var(--c-ink-subtle);padding:32px">No audit log entries.</td></tr>'
               : list.map(log => `
                 <tr>
-                  <td><span class="audit-action">${escHtml(log.action || log.event_type || '—')}</span></td>
-                  <td class="mono text-primary" style="font-size:12px">${escHtml(log.target_id || log.subscriber_id || '—')}</td>
-                  <td class="text-muted">${escHtml(log.performed_by || log.user || 'system')}</td>
-                  <td class="text-muted" style="font-size:12px;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-                    title="${escHtml(typeof log.details === 'object' ? JSON.stringify(log.details) : String(log.details || ''))}">
-                    ${escHtml(typeof log.details === 'object' ? JSON.stringify(log.details) : String(log.details || '—')).slice(0, 120)}
+                  <td><span class="audit-action">${escHtml(log.action || '—')}</span></td>
+                  <td class="text-muted">${escHtml(log.user || 'system')}</td>
+                  <td class="text-muted" style="font-size:12px;max-width:480px" title="${escHtml(log.details)}">
+                    ${escHtml(log.details)}
                   </td>
-                  <td class="text-subtle" style="font-size:12px;white-space:nowrap">${fmtDatetime(log.created_at || log.timestamp)}</td>
+                  <td class="text-subtle" style="font-size:12px;white-space:nowrap">${fmtDatetime(log.timestamp)}</td>
                 </tr>
               `).join('')
             }
@@ -971,21 +1346,417 @@ async function renderAuditLog() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL EVENT WIRING
+   PILLAR B: DATA ENTRY SIDE PANEL & FORMS
+   ═══════════════════════════════════════════════════════════ */
+
+function openDataEntryPanel(tab = 'subscriber', prefillMobile = '') {
+  const overlay = document.getElementById('side-panel-overlay');
+  const panel = document.getElementById('side-panel');
+  if (overlay && panel) {
+    overlay.classList.remove('hidden');
+    panel.classList.remove('hidden');
+  }
+  switchDataEntryTab(tab, prefillMobile);
+}
+
+function closeDataEntryPanel() {
+  const overlay = document.getElementById('side-panel-overlay');
+  const panel = document.getElementById('side-panel');
+  if (overlay && panel) {
+    overlay.classList.add('hidden');
+    panel.classList.add('hidden');
+  }
+}
+
+function switchDataEntryTab(tab, prefillMobile = '') {
+  state.activeSideTab = tab;
+  document.querySelectorAll('.side-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+
+  const body = document.getElementById('side-panel-body');
+  if (!body) return;
+
+  switch (tab) {
+    case 'subscriber': renderSubscriberForm(body); break;
+    case 'device':     renderDeviceForm(body);     break;
+    case 'fraud':      renderFraudReportForm(body, prefillMobile); break;
+    case 'pos':        renderPosForm(body);        break;
+  }
+}
+
+async function renderSubscriberForm(container) {
+  container.innerHTML = `
+    <form id="form-create-subscriber">
+      <div class="form-group">
+        <label class="form-label">Subscriber ID <span class="form-hint">(Optional — auto-generated if blank)</span></label>
+        <input type="text" class="form-input" id="sub-id-input" placeholder="e.g. SUB_MANUAL_101" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">KYC Status <span class="required">*</span></label>
+        <select class="form-select" id="sub-kyc-input">
+          <option value="PENDING">PENDING</option>
+          <option value="VERIFIED">VERIFIED</option>
+          <option value="REJECTED">REJECTED</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">State <span class="required">*</span></label>
+        <input type="text" class="form-input" id="sub-state-input" placeholder="e.g. Delhi" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">District <span class="required">*</span></label>
+        <input type="text" class="form-input" id="sub-district-input" placeholder="e.g. New Delhi" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Point of Sale (PoS ID) <span class="required">*</span></label>
+        <select class="form-select" id="sub-pos-input" required>
+          <option value="">Loading PoS locations…</option>
+        </select>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeDataEntryPanel()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Register Subscriber</button>
+      </div>
+    </form>
+  `;
+
+  try {
+    const posList = await apiFetch('/api/pos');
+    const select = document.getElementById('sub-pos-input');
+    if (select && Array.isArray(posList)) {
+      if (posList.length === 0) {
+        select.innerHTML = '<option value="POS_001">POS_001 (Default)</option>';
+      } else {
+        select.innerHTML = posList.map(p => `<option value="${escHtml(p.pos_id)}">${escHtml(p.pos_id)} (${escHtml(p.region)} - ${escHtml(p.operator)})</option>`).join('');
+      }
+    }
+  } catch {
+    const select = document.getElementById('sub-pos-input');
+    if (select) select.innerHTML = '<option value="POS_001">POS_001</option>';
+  }
+
+  document.getElementById('form-create-subscriber').addEventListener('submit', async e => {
+    e.preventDefault();
+    const payload = {
+      subscriber_id: document.getElementById('sub-id-input').value.trim() || undefined,
+      kyc_status:    document.getElementById('sub-kyc-input').value,
+      state:         document.getElementById('sub-state-input').value.trim(),
+      district:      document.getElementById('sub-district-input').value.trim(),
+      pos_id:        document.getElementById('sub-pos-input').value,
+    };
+
+    try {
+      const res = await apiFetch('/api/subscribers', { method: 'POST', body: JSON.stringify(payload) });
+      showToast(`Subscriber ${res.subscriber_id} created successfully!`);
+      closeDataEntryPanel();
+      if (state.page === 'subscribers') renderSubscribers();
+    } catch (err) {
+      showToast('Error creating subscriber: ' + err.message, 5000);
+    }
+  });
+}
+
+function renderDeviceForm(container) {
+  container.innerHTML = `
+    <form id="form-create-device">
+      <div class="form-group">
+        <label class="form-label">Device ID <span class="form-hint">(Optional — auto-generated if blank)</span></label>
+        <input type="text" class="form-input" id="dev-id-input" placeholder="e.g. DEV_MANUAL_101" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">IMEI Number (15 digits) <span class="required">*</span></label>
+        <input type="text" class="form-input mono" id="dev-imei-input" placeholder="e.g. 352999109518741" maxlength="15" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">TAC (First 8 digits of IMEI)</label>
+        <input type="text" class="form-input mono" id="dev-tac-input" placeholder="Auto-filled from IMEI" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Device Model <span class="required">*</span></label>
+        <input type="text" class="form-input" id="dev-model-input" placeholder="e.g. Redmi Note 12" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Manufacturer <span class="required">*</span></label>
+        <input type="text" class="form-input" id="dev-mfr-input" placeholder="e.g. Xiaomi" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Initial Status <span class="required">*</span></label>
+        <select class="form-select" id="dev-status-input">
+          <option value="NORMAL">NORMAL</option>
+          <option value="STOLEN">STOLEN</option>
+          <option value="LOST">LOST</option>
+        </select>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeDataEntryPanel()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Register Device</button>
+      </div>
+    </form>
+  `;
+
+  document.getElementById('dev-imei-input').addEventListener('input', e => {
+    const val = e.target.value.trim();
+    if (val.length >= 8) {
+      document.getElementById('dev-tac-input').value = val.slice(0, 8);
+    }
+  });
+
+  document.getElementById('form-create-device').addEventListener('submit', async e => {
+    e.preventDefault();
+    const payload = {
+      device_id:    document.getElementById('dev-id-input').value.trim() || undefined,
+      imei:         document.getElementById('dev-imei-input').value.trim(),
+      tac:          document.getElementById('dev-tac-input').value.trim() || undefined,
+      device_model: document.getElementById('dev-model-input').value.trim(),
+      manufacturer: document.getElementById('dev-mfr-input').value.trim(),
+      status:       document.getElementById('dev-status-input').value,
+    };
+
+    try {
+      const res = await apiFetch('/api/devices', { method: 'POST', body: JSON.stringify(payload) });
+      showToast(`Device ${res.device_id} registered successfully!`);
+      closeDataEntryPanel();
+      if (state.page === 'devices') renderDevices();
+    } catch (err) {
+      showToast('Error registering device: ' + err.message, 5000);
+    }
+  });
+}
+
+function renderFraudReportForm(container, prefillMobile = '') {
+  container.innerHTML = `
+    <form id="form-file-fraud">
+      <div class="form-group">
+        <label class="form-label">Mobile Number <span class="required">*</span></label>
+        <input type="text" class="form-input mono" id="fraud-mobile-input" placeholder="e.g. 9876543210" value="${escHtml(prefillMobile)}" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Report Type <span class="required">*</span></label>
+        <select class="form-select" id="fraud-type-input">
+          <option value="SCAM_CALL">SCAM_CALL</option>
+          <option value="SIM_SWAP">SIM_SWAP</option>
+          <option value="HARASSMENT">HARASSMENT</option>
+          <option value="IMPERSONATION">IMPERSONATION</option>
+          <option value="OTHER">OTHER</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Severity Level <span class="required">*</span></label>
+        <select class="form-select" id="fraud-severity-input">
+          <option value="HIGH">HIGH</option>
+          <option value="CRITICAL">CRITICAL</option>
+          <option value="MEDIUM">MEDIUM</option>
+          <option value="LOW">LOW</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Reporting Source <span class="required">*</span></label>
+        <select class="form-select" id="fraud-source-input">
+          <option value="POLICE_COMPLAINT">POLICE_COMPLAINT</option>
+          <option value="TELECOM_OPERATOR">TELECOM_OPERATOR</option>
+          <option value="CITIZEN_REPORT">CITIZEN_REPORT</option>
+          <option value="COURT_ORDER">COURT_ORDER</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description <span class="form-hint">(Max 500 characters)</span></label>
+        <textarea class="form-textarea" id="fraud-desc-input" rows="3" placeholder="Describe the reported incident…"></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeDataEntryPanel()">Cancel</button>
+        <button type="submit" class="btn btn-primary">File Fraud Report</button>
+      </div>
+    </form>
+  `;
+
+  document.getElementById('form-file-fraud').addEventListener('submit', async e => {
+    e.preventDefault();
+    const payload = {
+      mobile_number: document.getElementById('fraud-mobile-input').value.trim(),
+      report_type:   document.getElementById('fraud-type-input').value,
+      severity:      document.getElementById('fraud-severity-input').value,
+      source:        document.getElementById('fraud-source-input').value,
+      description:   document.getElementById('fraud-desc-input').value.trim() || undefined,
+    };
+
+    try {
+      const res = await apiFetch('/api/fraud_reports', { method: 'POST', body: JSON.stringify(payload) });
+      showToast(`Fraud Report ${res.report_id} filed successfully!`);
+      closeDataEntryPanel();
+
+      const hash = location.hash.replace('#', '');
+      if (hash.startsWith('subscriber/')) {
+        const subId = hash.slice('subscriber/'.length);
+        await apiFetch(`/api/subscribers/${encodeURIComponent(subId)}/evaluate`, { method: 'POST' });
+        renderSubscriberDetail(subId);
+      }
+    } catch (err) {
+      showToast('Error filing report: ' + err.message, 5000);
+    }
+  });
+}
+
+function renderPosForm(container) {
+  container.innerHTML = `
+    <form id="form-create-pos">
+      <div class="form-group">
+        <label class="form-label">Point of Sale ID <span class="form-hint">(Optional — auto-generated if blank)</span></label>
+        <input type="text" class="form-input mono" id="pos-id-input" placeholder="e.g. POS_MANUAL_101" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Region <span class="required">*</span></label>
+        <input type="text" class="form-input" id="pos-region-input" placeholder="e.g. North" required />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Operator <span class="required">*</span></label>
+        <select class="form-select" id="pos-operator-input">
+          <option value="Jio">Jio</option>
+          <option value="Airtel">Airtel</option>
+          <option value="Vi">Vi</option>
+          <option value="BSNL">BSNL</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Registration Date <span class="form-hint">(Optional — YYYY-MM-DD)</span></label>
+        <input type="date" class="form-input" id="pos-date-input" />
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeDataEntryPanel()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Register Point of Sale</button>
+      </div>
+    </form>
+  `;
+
+  document.getElementById('form-create-pos').addEventListener('submit', async e => {
+    e.preventDefault();
+    const payload = {
+      pos_id:            document.getElementById('pos-id-input').value.trim() || undefined,
+      region:            document.getElementById('pos-region-input').value.trim(),
+      operator:          document.getElementById('pos-operator-input').value,
+      registration_date: document.getElementById('pos-date-input').value || undefined,
+    };
+
+    try {
+      const res = await apiFetch('/api/pos', { method: 'POST', body: JSON.stringify(payload) });
+      showToast(`Point of Sale ${res.pos_id} created successfully!`);
+      closeDataEntryPanel();
+    } catch (err) {
+      showToast('Error registering PoS: ' + err.message, 5000);
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PILLAR A4: KEYBOARD SHORTCUTS
+   ═══════════════════════════════════════════════════════════ */
+
+function initKeyboardShortcuts() {
+  window.addEventListener('keydown', e => {
+    const active = document.activeElement;
+    const isEditing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
+
+    // Key: "/" -> Focus active page search bar
+    if (e.key === '/' && !isEditing) {
+      e.preventDefault();
+      const searchInput = document.querySelector('.search-input');
+      if (searchInput) searchInput.focus();
+      return;
+    }
+
+    // Key: "Escape" -> Close side panel, modal, or navigate back
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('modal-overlay');
+      const sidePanel = document.getElementById('side-panel');
+
+      if (sidePanel && !sidePanel.classList.contains('hidden')) {
+        closeDataEntryPanel();
+        return;
+      }
+      if (modal && !modal.classList.contains('hidden')) {
+        closeModal();
+        return;
+      }
+      if (location.hash.startsWith('#subscriber/')) {
+        navigate('subscribers');
+        return;
+      }
+    }
+
+    // Navigation Shortcuts: Alt+Key
+    if (e.altKey) {
+      switch (e.key.toLowerCase()) {
+        case 'd': e.preventDefault(); navigate('dashboard');      break;
+        case 's': e.preventDefault(); navigate('subscribers');    break;
+        case 'v': e.preventDefault(); navigate('devices');        break;
+        case 'i': e.preventDefault(); navigate('investigations'); break;
+        case 'a': e.preventDefault(); navigate('audit-log');       break;
+      }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EVENT WIRING & INITIALIZATION
    ═══════════════════════════════════════════════════════════ */
 
 document.addEventListener('DOMContentLoaded', () => {
+  const toastClose = document.getElementById('toast-close');
+  if (toastClose) {
+    toastClose.addEventListener('click', () => {
+      document.getElementById('toast').classList.add('hidden');
+    });
+  }
+
+  const btnOpenPanel = document.getElementById('btn-open-entry-panel');
+  if (btnOpenPanel) {
+    btnOpenPanel.addEventListener('click', () => openDataEntryPanel('subscriber'));
+  }
+  const btnClosePanel = document.getElementById('side-panel-close');
+  if (btnClosePanel) {
+    btnClosePanel.addEventListener('click', closeDataEntryPanel);
+  }
+  const overlayPanel = document.getElementById('side-panel-overlay');
+  if (overlayPanel) {
+    overlayPanel.addEventListener('click', closeDataEntryPanel);
+  }
+
+  document.querySelectorAll('.side-tab-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const tab = e.target.dataset.tab;
+      switchDataEntryTab(tab);
+    });
+  });
+
   document.getElementById('modal-close').addEventListener('click',  closeModal);
   document.getElementById('modal-cancel').addEventListener('click', closeModal);
   document.getElementById('modal-submit').addEventListener('click', submitModal);
   document.getElementById('modal-overlay').addEventListener('click', e => {
     if (e.target === document.getElementById('modal-overlay')) closeModal();
   });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeModal();
-  });
 
-  // Initial backend check + routing
+  initKeyboardShortcuts();
+
   checkBackend();
   setInterval(checkBackend, 30000);
 

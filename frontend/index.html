@@ -57,8 +57,13 @@
   <main id="main" class="main">
     <!-- Utility Bar -->
     <div class="utility-bar">
-      <span class="utility-tag">Trinetra Intelligence Platform</span>
-      <span class="utility-breadcrumb" id="utility-breadcrumb">Dashboard</span>
+      <div class="utility-bar-left">
+        <span class="utility-tag">Trinetra Intelligence Platform</span>
+        <span class="utility-breadcrumb" id="utility-breadcrumb">Dashboard</span>
+      </div>
+      <div class="utility-bar-right">
+        <button class="btn btn-primary btn-sm" id="btn-open-entry-panel">⊕ New Entry</button>
+      </div>
     </div>
 
     <!-- Page Content — injected by app.js -->
@@ -71,7 +76,30 @@
   </main>
 
   <!-- ═══════════════════════════════════════════════════════
-       MODAL OVERLAY (for investigation updates)
+       DATA ENTRY SIDE PANEL
+  ═══════════════════════════════════════════════════════ -->
+  <div id="side-panel-overlay" class="side-panel-overlay hidden"></div>
+  <aside id="side-panel" class="side-panel hidden" role="dialog" aria-modal="true" aria-labelledby="side-panel-title">
+    <div class="side-panel-header">
+      <div>
+        <h2 class="side-panel-title" id="side-panel-title">Data Entry Pipeline</h2>
+        <p class="side-panel-subtitle">Create and update telecom records in real time</p>
+      </div>
+      <button class="side-panel-close" id="side-panel-close" aria-label="Close panel">&times;</button>
+    </div>
+    <div class="side-panel-tabs">
+      <button class="side-tab-btn active" data-tab="subscriber">Subscriber</button>
+      <button class="side-tab-btn" data-tab="device">Device</button>
+      <button class="side-tab-btn" data-tab="fraud">Fraud Report</button>
+      <button class="side-tab-btn" data-tab="pos">Point of Sale</button>
+    </div>
+    <div class="side-panel-body" id="side-panel-body">
+      <!-- Injected by app.js -->
+    </div>
+  </aside>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MODAL OVERLAY (for investigation updates / contextual forms)
   ═══════════════════════════════════════════════════════ -->
   <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal" id="modal">
