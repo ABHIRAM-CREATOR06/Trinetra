@@ -1,0 +1,9 @@
+# Nginx web server for Trinetra Single Page Application (SPA)
+FROM nginx:alpine
+
+# Copy static frontend files into default Nginx web root
+COPY frontend/ /usr/share/nginx/html/
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

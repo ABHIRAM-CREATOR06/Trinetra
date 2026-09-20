@@ -1,4 +1,37 @@
-private/
-dataset/
-log/
+# Rust build artifacts
 target/
+**/*.rs.bk
+
+# Python byte-code & virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+
+# SQLite temporary journal files
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# ML binary artifacts (keep directory structure)
+ml/models/*.joblib
+
+# Logs, datasets & private notes
+log/
+dataset/
+private/
+ml/models
+target/
+*.log
+
+# OS & IDE settings
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

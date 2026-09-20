@@ -75,6 +75,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/pos", get(routes::list_pos).post(routes::create_pos))
         .route("/api/locations", get(routes::list_locations))
         .route("/api/audit_logs", get(routes::list_audit_logs))
+        .route("/api/ml/train", post(routes::train_ml_model))
+        .route("/api/ml/status", get(routes::get_ml_status))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)

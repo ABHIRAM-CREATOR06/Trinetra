@@ -11,7 +11,8 @@
 [![Frontend](https://img.shields.io/badge/frontend-Vanilla%20JS-yellow)](frontend)
 [![Data Generator](https://img.shields.io/badge/data--generator-Python-blue)](data-generator)
 [![Database](https://img.shields.io/badge/database-SQLite-lightgrey)](data)
-[![Phase](https://img.shields.io/badge/phase-1%20%26%204%20complete-brightgreen)]()
+[![Docker](https://img.shields.io/badge/docker-ready-blue?logo=docker&logoColor=white)](docker-compose.yml)
+[![Phase](https://img.shields.io/badge/phase-1%2C%202%20%26%204%20complete-brightgreen)]()
 
 </div>
 
@@ -19,7 +20,7 @@
 
 Trinetra is an independent research prototype exploring multi-layer telecom fraud detection and explainable risk scoring. It correlates subscriber, SIM, device, and behavioral signals over synthetic telecom network traces to identify anomalies and flag investigations — every score comes with a breakdown of exactly which rules produced it.
 
-The project is scoped in phases. **Phases 1 and 4 (including Iterations 2 & 3: UI Enhancements & Manual Data Entry Pipelines) are complete and functional today.**
+The project is scoped in phases. **Phases 1, 2, and 4 (including Iterations 2, 3 & 4: UI Enhancements, Data Entry Pipelines, & ML Intelligence Layer) are complete and functional today.**
 
 ## Table of Contents
 
@@ -28,6 +29,9 @@ The project is scoped in phases. **Phases 1 and 4 (including Iterations 2 & 3: U
 - [Architecture](#architecture)
 - [Directory Structure](#directory-structure)
 - [Quickstart](#quickstart)
+  - [Option A: Windows One-Click Setup](#option-a-windows-one-click-setup)
+  - [Option B: Cross-Platform Setup via Docker](#option-b-cross-platform-setup-via-docker)
+  - [Option C: Manual Local Setup](#option-c-manual-local-setup)
 - [API Reference](#api-reference)
 - [Risk Engine](#risk-engine)
 - [Investigation Dashboard & Data Entry](#investigation-dashboard--data-entry)
@@ -44,7 +48,7 @@ Most fraud detection systems produce a score with no explanation attached. Trine
 | Phase | Scope | Status |
 |---|---|---|
 | **Phase 1 — Foundation & Detection** | Data model, synthetic data generator, SQLite database, migrations, REST API, rule-based risk engine, explainable scoring | **Complete** |
-| Phase 2 — Machine Learning | Feature engineering, anomaly detection (Isolation Forest, Random Forest, XGBoost) as an additional intelligence layer | Planned |
+| **Phase 2 — Machine Learning** | Feature engineering, anomaly detection (Isolation Forest, Random Forest) integrated into hybrid risk engine | **Complete (Iter 4)** |
 | Phase 3 — Graph Intelligence | Entity relationship graph (NetworkX), cluster detection across subscribers/SIMs/devices | Planned |
 | **Phase 4 — Investigation & Operations Platform** | Vanilla JS SPA dashboard, subscriber/device browser, risk trend sparklines, bulk evaluate queue, investigation workflow, audit log, **Manual Data Entry Pipelines (Iteration 3)** | **Complete** |
 | Phase 5 — Research | Ablation studies, benchmarking, formal evaluation (precision/recall/F1/ROC-AUC), research report | Planned |
@@ -63,7 +67,7 @@ Most fraud detection systems produce a score with no explanation attached. Trine
                          ↓
                 Fraud Intelligence
                          ↓
-         Rule Engine + Data Entry Pipelines
+    Rule Engine + ML Anomaly Layer + Data Entry
                          ↓
               SQLite Database (trinetra.db)
                          ↓
@@ -72,7 +76,7 @@ Most fraud detection systems produce a score with no explanation attached. Trine
        Vanilla JS Investigation & Entry Platform
 ```
 
-A Python generator seeds a portable SQLite database with realistic benign and fraudulent subscriber traces across 8 distinct fraud scenarios. A Rust (Axum + SQLx) backend serves this data through 17 REST API endpoints, processes rule-based risk evaluations, handles entity write pipelines with audit logging, and auto-opens investigations for anything scoring HIGH or above. A single-page web dashboard connects to the API and provides a full investigation and operational platform: subscriber browsing, device profiling, data entry slide-in panel, sparkline trend charts, bulk evaluation, investigation management, and a live audit trail.
+A Python generator seeds a portable SQLite database with realistic benign and fraudulent subscriber traces across 8 distinct fraud scenarios. A Rust (Axum + SQLx) backend serves this data through REST API endpoints, processes rule-based + ML risk evaluations, handles entity write pipelines with audit logging, and auto-opens investigations for high risk assessments. A single-page web dashboard connects to the API and provides a full investigation and operational platform.
 
 ## Directory Structure
 
@@ -80,24 +84,53 @@ A Python generator seeds a portable SQLite database with realistic benign and fr
 |---|---|
 | `data/` | Database migration scripts and the canonical portable database file `trinetra.db` |
 | `data-generator/` | Python simulator generating benign traces and 8 distinct fraud scenarios |
-| `backend/` | Rust Axum web API using SQLx for parameterized queries, write endpoints, and risk engine |
+| `ml/` | Machine learning feature extractor (`features.py`), model training (`train.py`), evaluator (`score_evaluator.py`), and model artifacts |
+| `backend/` | Rust Axum web API using SQLx for parameterized queries, write endpoints, ML routes, and risk engine |
 | `frontend/` | Vanilla JS single-page investigation & data entry dashboard (no build step; open `index.html` directly) |
-| `log/` | Iteration walkthroughs and implementation documentation ([iter1.md](log/iter1.md), [iter2.md](log/iter2.md), [iter3.md](log/iter3.md)) |
+| `log/` | Iteration walkthroughs and implementation documentation ([iter1.md](log/iter1.md), [iter2.md](log/iter2.md), [iter3.md](log/iter3.md), [iter4.md](log/iter4.md)) |
+| `setup.bat` | Automated one-click setup script for Windows environments |
+| `Dockerfile` & `docker-compose.yml` | Multi-stage Docker containerization for cross-platform deployment |
 | `dataset/` | Public FraudZen bypass-fraud CDR trace data for external ML experiments |
 | `private/` | Project requirements, agent instruction manuals, and design guidelines |
 
 ## Quickstart
 
-### 1. Generate and populate the database
+### Option A: Windows One-Click Setup
 
-The generator runs migrations and seeds `data/trinetra.db` with 500+ subscribers across 8 fraud scenarios, plus locations, points of sale, SIMs, devices, and network events.
+For Windows users, run the automated setup batch file:
 
-```bash
-# from repository root
-python data-generator/generator.py --clean
+```cmd
+setup.bat
 ```
 
-### 2. Build and run the backend
+This script automatically verifies Python & Rust, installs requirements, seeds `trinetra.db`, trains the ML models, and builds the Rust backend binary.
+
+---
+
+### Option B: Cross-Platform Setup via Docker
+
+Run Trinetra on Linux, macOS, or Windows using Docker Compose:
+
+```bash
+docker-compose up --build
+```
+
+- **Frontend Dashboard**: Open `http://localhost:8080` in your browser.
+- **Backend API**: Running at `http://localhost:3000`.
+
+---
+
+### Option C: Manual Local Setup
+
+#### 1. Install Python requirements & seed database
+
+```bash
+pip install -r requirements.txt
+python data-generator/generator.py --clean
+python ml/train.py
+```
+
+#### 2. Build and run the Rust backend
 
 ```bash
 cd backend
@@ -106,7 +139,7 @@ cargo run
 
 The API starts on `http://127.0.0.1:3000`.
 
-### 3. Open the dashboard
+#### 3. Open the dashboard
 
 Open `frontend/index.html` in any modern browser. The dashboard connects to the backend at `http://127.0.0.1:3000` and shows a live backend health indicator in the sidebar. No build step or package install required.
 
@@ -207,7 +240,7 @@ Trinetra is developed in phases:
 - [x] **Phase 1 — Foundation & Detection**: Database schema, synthetic generator, Rust backend, 6-rule risk engine
 - [x] **Iteration 2 — Carbon UI SPA**: SPA dashboard, subscriber/device browser, investigation modal, audit log
 - [x] **Iteration 3 — Manual Data Entry & UI Enhancements**: 10 new API endpoints, slide-in side panel, sparkline trend chart, bulk evaluation queue, table column filters, keyboard shortcuts
-- [ ] **Phase 2 — Machine Learning Intelligence**: Isolation Forest, XGBoost anomaly scoring integrated into risk engine
+- [x] **Phase 2 — Machine Learning Intelligence (Iteration 4)**: 11-feature vector extractor, Isolation Forest & Random Forest models, hybrid risk scoring engine ($0.7 \text{Rule} + 0.3 \text{ML}$), `/api/ml/train`, `/api/ml/status`, and UI ML Cards
 - [ ] **Phase 3 — Graph Intelligence**: NetworkX entity graph, cluster detection across shared IMEIs and PoS networks
 - [ ] **Phase 5 — Research & Evaluation**: Precision/Recall/ROC-AUC benchmarking report
 

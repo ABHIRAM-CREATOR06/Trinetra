@@ -367,6 +367,53 @@ async function renderDashboard() {
 
     const recentInv = invList.slice(0, 8);
 
+    let mlCardHtml = '';
+    try {
+      const mlRes = await apiFetch('/api/ml/status');
+      if (mlRes.status === 'trained' && mlRes.metadata) {
+        const m = mlRes.metadata;
+        const topFeats = Object.entries(m.feature_importances || {}).slice(0, 4);
+        mlCardHtml = `
+          <div class="ml-card mb-lg">
+            <div class="ml-card-header">
+              <div class="ml-card-title">🧠 Machine Learning Intelligence Layer (Phase 2)</div>
+              <span class="ml-badge">● TRAINED & ACTIVE</span>
+            </div>
+            <div class="ml-metrics-grid">
+              <div class="ml-metric-box">
+                <div class="ml-metric-label">Trained Samples</div>
+                <div class="ml-metric-val">${m.total_samples || 0}</div>
+              </div>
+              <div class="ml-metric-box">
+                <div class="ml-metric-label">Precision</div>
+                <div class="ml-metric-val" style="color:var(--c-success)">${((m.metrics?.precision || 1.0) * 100).toFixed(0)}%</div>
+              </div>
+              <div class="ml-metric-box">
+                <div class="ml-metric-label">F1 / Recall</div>
+                <div class="ml-metric-val" style="color:var(--c-primary)">${((m.metrics?.f1_score || 1.0) * 100).toFixed(0)}%</div>
+              </div>
+              <div class="ml-metric-box">
+                <div class="ml-metric-label">ROC-AUC</div>
+                <div class="ml-metric-val" style="color:var(--c-primary)">${(m.metrics?.roc_auc || 1.0).toFixed(2)}</div>
+              </div>
+            </div>
+            <div style="margin-top:12px;font-size:12px;color:var(--c-ink-muted)">
+              <strong>Top Feature Importances (Random Forest):</strong>
+              <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px">
+                ${topFeats.map(([f, imp]) => `
+                  <div class="ml-factor-bar">
+                    <span class="ml-factor-name">${f}</span>
+                    <div class="ml-factor-track"><div class="ml-factor-fill" style="width:${(imp * 100).toFixed(0)}%"></div></div>
+                    <span style="font-size:11px">${(imp * 100).toFixed(1)}%</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    } catch (e) {}
+
     setContent(`
       <div class="page-header">
         <h1 class="page-title">Dashboard</h1>
@@ -396,6 +443,8 @@ async function renderDashboard() {
           <span class="kpi-meta">All time</span>
         </div>
       </div>
+
+      ${mlCardHtml}
 
       <!-- Risk Breakdown + Quick Evaluate -->
       <div class="section-grid">
@@ -811,6 +860,25 @@ async function renderSubscriberDetail(id) {
       </div>
 
       <div id="detail-eval-result"></div>
+
+      ${(() => {
+        const latest = assessments.length > 0 ? assessments[0] : null;
+        if (latest && latest.ml_score !== null && latest.ml_score !== undefined) {
+          const val = Number(latest.ml_score).toFixed(1);
+          return `
+            <div class="ml-card mt-md mb-md">
+              <div class="ml-card-header">
+                <div class="ml-card-title">🧠 ML Anomaly Detection (Phase 2 Intelligence)</div>
+                <span class="ml-badge">${val}% ANOMALY INDEX</span>
+              </div>
+              <div style="font-size:12px;color:var(--c-ink-muted)">
+                Multi-layer feature vector evaluated using Isolation Forest (unsupervised) + Supervised Random Forest. Contributing weight: 30% of total risk score.
+              </div>
+            </div>
+          `;
+        }
+        return '';
+      })()}
 
       <!-- Pillar A1: Risk Score Trend Chart -->
       <div class="sparkline-card">
@@ -1731,6 +1799,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnOpenPanel = document.getElementById('btn-open-entry-panel');
   if (btnOpenPanel) {
     btnOpenPanel.addEventListener('click', () => openDataEntryPanel('subscriber'));
+  }
+
+  const btnTrainMl = document.getElementById('btn-train-ml');
+  if (btnTrainMl) {
+    btnTrainMl.addEventListener('click', async () => {
+      btnTrainMl.disabled = true;
+      btnTrainMl.textContent = '🧠 Training ML…';
+      showToast('🧠 Training ML models (Isolation Forest + Random Forest)…', 6000);
+      try {
+        await apiFetch('/api/ml/train', { method: 'POST' });
+        showToast('✓ ML Training completed successfully! Models updated.', 5000);
+        if (state.page === 'dashboard') renderDashboard();
+      } catch (err) {
+        showToast('⚠ ML Training failed: ' + err.message, 5000);
+      } finally {
+        btnTrainMl.disabled = false;
+        btnTrainMl.textContent = '🧠 Train ML Model';
+      }
+    });
   }
   const btnClosePanel = document.getElementById('side-panel-close');
   if (btnClosePanel) {

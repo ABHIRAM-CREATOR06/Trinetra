@@ -1219,3 +1219,70 @@ pub async fn list_fraud_reports(
     Json(list).into_response()
 }
 
+// POST /api/ml/train
+pub async fn train_ml_model(
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let script_path = if std::path::Path::new("ml/train.py").exists() {
+        "ml/train.py"
+    } else if std::path::Path::new("../ml/train.py").exists() {
+        "../ml/train.py"
+    } else {
+        return (StatusCode::NOT_FOUND, "ML training script not found").into_response();
+    };
+
+    let output = match std::process::Command::new("python").arg(script_path).output() {
+        Ok(out) => out,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to execute python: {}", e)).into_response(),
+    };
+
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("ML Training failed: {}", err_msg)).into_response();
+    }
+
+    // Audit log
+    let audit_id = format!("AUD_{}", uuid::Uuid::new_v4().to_string()[..8].to_uppercase());
+    let now = chrono::Utc::now().naive_utc().format("%Y-%m-%dT%H:%M:%S").to_string();
+    let _ = sqlx::query(
+        "INSERT INTO audit_logs (audit_id, action, user, details, timestamp) VALUES (?, 'TRAIN_ML_MODEL', 'operator', 'Re-trained Isolation Forest and Random Forest models', ?);"
+    )
+    .bind(&audit_id)
+    .bind(&now)
+    .execute(&state.db)
+    .await;
+
+    get_ml_status().await.into_response()
+}
+
+// GET /api/ml/status
+pub async fn get_ml_status() -> impl IntoResponse {
+    let meta_path = if std::path::Path::new("ml/models/model_metadata.json").exists() {
+        "ml/models/model_metadata.json"
+    } else if std::path::Path::new("../ml/models/model_metadata.json").exists() {
+        "../ml/models/model_metadata.json"
+    } else {
+        return Json(serde_json::json!({
+            "status": "not_trained",
+            "message": "No ML model artifacts found. Click 'Train ML Model' to train initial model."
+        })).into_response();
+    };
+
+    match std::fs::read_to_string(meta_path) {
+        Ok(content) => {
+            if let Ok(val) = serde_json::from_str::<Value>(&content) {
+                Json(serde_json::json!({
+                    "status": "trained",
+                    "metadata": val
+                })).into_response()
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Invalid JSON in model metadata").into_response()
+            }
+        }
+        Err(_) => Json(serde_json::json!({
+            "status": "not_trained"
+        })).into_response(),
+    }
+}
+
+

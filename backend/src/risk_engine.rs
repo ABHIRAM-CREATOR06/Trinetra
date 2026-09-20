@@ -208,11 +208,29 @@ pub async fn evaluate_subscriber_risk(
         triggers.push("GEOGRAPHIC_ANOMALY".to_string());
     }
 
-    // Cap the score
-    score = score.min(100);
+    // Cap the rule score
+    let rule_score = score.min(100);
+
+    // 8. ML Intelligence Integration
+    let mut ml_score_opt: Option<f64> = None;
+    let final_score = if let Some((ml_s, iso_s, rf_s, top_factor)) = fetch_ml_score(subscriber_id) {
+        ml_score_opt = Some(ml_s);
+        let ml_contrib = (ml_s * 0.30).round() as i32;
+        let rule_contrib = (rule_score as f64 * 0.70).round() as i32;
+        let hybrid = (rule_contrib + ml_contrib).clamp(0, 100);
+        
+        triggers.push("ML_ANOMALY_SIGNAL".to_string());
+        explanation_parts.push(format!(
+            "+{} ML Anomaly Score (IsoForest: {:.1}, RF: {:.1}, key factor: {})",
+            ml_contrib, iso_s, rf_s, top_factor
+        ));
+        hybrid
+    } else {
+        rule_score
+    };
 
     // Determine level
-    let risk_level = match score {
+    let risk_level = match final_score {
         0..=24 => "LOW",
         25..=49 => "MEDIUM",
         50..=74 => "HIGH",
@@ -230,22 +248,23 @@ pub async fn evaluate_subscriber_risk(
 
     let rules_json = serde_json::to_string(&triggers).unwrap_or_else(|_| "[]".to_string());
 
-    // 8. Save Risk Assessment
+    // Save Risk Assessment
     sqlx::query(
         "INSERT INTO risk_assessments (assessment_id, entity_type, entity_id, risk_score, risk_level, rules_triggered, ml_score, graph_score, explanation, timestamp) \
-         VALUES (?, 'subscriber', ?, ?, ?, ?, NULL, NULL, ?, ?);"
+         VALUES (?, 'subscriber', ?, ?, ?, ?, ?, NULL, ?, ?);"
     )
     .bind(&assessment_id)
     .bind(subscriber_id)
-    .bind(score)
+    .bind(final_score)
     .bind(risk_level)
     .bind(&rules_json)
+    .bind(ml_score_opt)
     .bind(&explanation)
     .bind(&timestamp)
     .execute(db)
     .await?;
 
-    // 9. Auto-create investigation for HIGH / VERY HIGH
+    // Auto-create investigation for HIGH / VERY HIGH
     if risk_level == "HIGH" || risk_level == "VERY HIGH" {
         let inv_id = format!("INV_{}", Uuid::new_v4().to_string()[..8].to_uppercase());
         sqlx::query(
@@ -260,9 +279,9 @@ pub async fn evaluate_subscriber_risk(
         .await?;
     }
 
-    // 10. Audit Log
+    // Audit Log
     let audit_id = format!("AUD_{}", Uuid::new_v4().to_string()[..8].to_uppercase());
-    let audit_details = format!("Evaluated subscriber {}, score: {}, level: {}", subscriber_id, score, risk_level);
+    let audit_details = format!("Evaluated subscriber {}, score: {}, level: {} (ML score: {:?})", subscriber_id, final_score, risk_level, ml_score_opt);
     sqlx::query(
         "INSERT INTO audit_logs (audit_id, action, user, details, timestamp) \
          VALUES (?, 'EVALUATE_SUBSCRIBER', 'system', ?, ?);"
@@ -277,14 +296,50 @@ pub async fn evaluate_subscriber_risk(
         assessment_id,
         entity_type: "subscriber".to_string(),
         entity_id: subscriber_id.to_string(),
-        risk_score: score,
+        risk_score: final_score,
         risk_level: risk_level.to_string(),
         rules_triggered: triggers,
-        ml_score: None,
+        ml_score: ml_score_opt,
         graph_score: None,
         explanation,
         timestamp,
     })
+}
+
+fn fetch_ml_score(subscriber_id: &str) -> Option<(f64, f64, f64, String)> {
+    let script_path = if std::path::Path::new("ml/score_evaluator.py").exists() {
+        "ml/score_evaluator.py"
+    } else if std::path::Path::new("../ml/score_evaluator.py").exists() {
+        "../ml/score_evaluator.py"
+    } else {
+        return None;
+    };
+
+    let output = std::process::Command::new("python")
+        .args(["--", script_path, "--subscriber", subscriber_id, "--json", "--no-write"])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let json_str = String::from_utf8(output.stdout).ok()?;
+    let val: serde_json::Value = serde_json::from_str(&json_str).ok()?;
+    let sub_val = val.get(subscriber_id)?;
+
+    let ml_score = sub_val.get("ml_score")?.as_f64()?;
+    let iso_score = sub_val.get("isolation_forest_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let rf_score = sub_val.get("random_forest_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let top_factor = sub_val.get("top_anomalous_factors")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|item| item.get("feature"))
+        .and_then(|f| f.as_str())
+        .unwrap_or("general_anomaly")
+        .to_string();
+
+    Some((ml_score, iso_score, rf_score, top_factor))
 }
 
 // Simple parser for generator ISO strings (handles YYYY-MM-DDTHH:MM:SS or simple variants)
